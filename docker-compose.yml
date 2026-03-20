@@ -1,0 +1,114 @@
+# Purple Team GPT - Docker Compose Configuration
+# Orchestration for backend, frontend, and ChromaDB services
+
+version: "3.8"
+
+services:
+  # Backend Service - FastAPI Application
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: purple-team-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Application settings
+      - APP_DEBUG=false
+      - APP_LOG_LEVEL=INFO
+      - APP_SECRET_KEY=${APP_SECRET_KEY:-change-me-in-production}
+      # LLM Configuration (set in .env file)
+      - LLM_OPENAI_API_KEY=${LLM_OPENAI_API_KEY:-}
+      - LLM_ANTHROPIC_API_KEY=${LLM_ANTHROPIC_API_KEY:-}
+      - LLM_GROQ_API_KEY=${LLM_GROQ_API_KEY:-}
+      - LLM_DEEPSEEK_API_KEY=${LLM_DEEPSEEK_API_KEY:-}
+      - LLM_OLLAMA_BASE_URL=${LLM_OLLAMA_BASE_URL:-http://ollama:11434}
+      - LLM_DEFAULT_PROVIDER=${LLM_DEFAULT_PROVIDER:-openai}
+      - LLM_DEFAULT_MODEL=${LLM_DEFAULT_MODEL:-gpt-4o}
+      # ChromaDB Configuration
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8001
+      - CHROMA_PERSIST_DIR=/app/data/chromadb
+      # Agent Configuration
+      - AGENT_MAX_STEPS=50
+      - AGENT_TIMEOUT=300
+      - AGENT_SAFE_MODE=true
+      - AGENT_AUTO_CONFIRM=false
+    volumes:
+      # Persist ChromaDB data
+      - chromadb_data:/app/data/chromadb
+      # Persist logs
+      - backend_logs:/app/logs
+    depends_on:
+      chromadb:
+        condition: service_healthy
+    networks:
+      - purple-team-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend Service - Placeholder for React/Next.js frontend
+  frontend:
+    image: nginx:alpine
+    container_name: purple-team-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    volumes:
+      # Mount custom nginx config for SPA routing
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Mount built frontend assets (create this directory)
+      - ./frontend/dist:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
+    networks:
+      - purple-team-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ChromaDB Service - Vector Database
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: purple-team-chromadb
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8000
+      - CHROMA_SERVER_HTTP_BIND=0.0.0.0
+      - ALLOW_RESET=true
+      - ANONYMIZED_TELEMETRY=false
+    volumes:
+      - chromadb_data:/chroma/chroma
+    networks:
+      - purple-team-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# Named volumes for data persistence
+volumes:
+  chromadb_data:
+    driver: local
+    name: purple-team-chromadb-data
+  backend_logs:
+    driver: local
+    name: purple-team-backend-logs
+
+# Custom network for service communication
+networks:
+  purple-team-network:
+    driver: bridge
+    name: purple-team-network
