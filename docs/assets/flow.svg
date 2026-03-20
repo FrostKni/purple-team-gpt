@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 500">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520">
   <defs>
     <linearGradient id="redGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" style="stop-color:#EF4444"/>
@@ -31,16 +31,19 @@
     <marker id="arrowPurple" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
       <polygon points="0 0, 10 3.5, 0 7" fill="#8B5CF6"/>
     </marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#22C55E"/>
+    </marker>
   </defs>
   
   <!-- Background -->
-  <rect width="900" height="500" fill="#0F172A"/>
+  <rect width="900" height="520" fill="#0F172A"/>
   
   <!-- Grid -->
   <pattern id="grid2" width="20" height="20" patternUnits="userSpaceOnUse">
     <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1E293B" stroke-width="0.5"/>
   </pattern>
-  <rect width="900" height="500" fill="url(#grid2)" opacity="0.3"/>
+  <rect width="900" height="520" fill="url(#grid2)" opacity="0.3"/>
   
   <!-- Title -->
   <text x="450" y="35" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#F8FAFC">Purple Team Simulation Flow</text>
@@ -71,9 +74,9 @@
     <text x="420" y="125" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#DDD6FE">Coordinate Execution</text>
   </g>
   
-  <!-- Split to Red and Blue -->
-  <path d="M420 140 L420 170 L200 170 L200 200" stroke="#EF4444" stroke-width="2" marker-end="url(#arrowRed)"/>
-  <path d="M420 140 L420 170 L700 170 L700 200" stroke="#3B82F6" stroke-width="2" marker-end="url(#arrowBlue)"/>
+  <!-- Split to Red and Blue - Different paths to avoid overlap -->
+  <path d="M380 140 L380 165 L200 165 L200 200" stroke="#EF4444" stroke-width="2" marker-end="url(#arrowRed)" fill="none"/>
+  <path d="M460 140 L460 165 L700 165 L700 200" stroke="#3B82F6" stroke-width="2" marker-end="url(#arrowBlue)" fill="none"/>
   
   <!-- Red Agent Branch -->
   <g filter="url(#glow2)">
@@ -107,39 +110,35 @@
     <text x="700" y="322" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#DBEAFE">3. Deploy Response</text>
   </g>
   
-  <!-- Cross-communication arrows -->
-  <path d="M300 270 L600 270" stroke="#A855F7" stroke-width="2" stroke-dasharray="5,5" marker-end="url(#arrowPurple)"/>
-  <text x="450" y="260" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#C4B5FD">Notify Actions</text>
+  <!-- Cross-communication arrows - Offset to avoid overlap -->
+  <path d="M300 265 L600 265" stroke="#A855F7" stroke-width="2" stroke-dasharray="5,5" marker-end="url(#arrowPurple)" fill="none"/>
+  <text x="450" y="255" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#C4B5FD">Notify Actions</text>
   
-  <path d="M600 300 L300 300" stroke="#22C55E" stroke-width="2" stroke-dasharray="5,5" marker-end="url(#arrow)"/>
-  <text x="450" y="315" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#86EFAC">Defense Feedback</text>
+  <path d="M600 305 L300 305" stroke="#22C55E" stroke-width="2" stroke-dasharray="5,5" marker-end="url(#arrowGreen)" fill="none"/>
+  <text x="450" y="320" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#86EFAC">Defense Feedback</text>
   
-  <!-- Converge to Results -->
-  <path d="M200 335 L200 365 L420 365 L420 385" stroke="#EF4444" stroke-width="2" marker-end="url(#arrowRed)"/>
-  <path d="M700 335 L700 365 L420 365 L420 385" stroke="#3B82F6" stroke-width="2" marker-end="url(#arrowBlue)"/>
-  
-  <!-- Results & Learning -->
+  <!-- Results Box - Centered -->
   <g filter="url(#glow2)">
-    <rect x="320" y="390" width="200" height="50" rx="8" fill="#059669" stroke="#34D399" stroke-width="2"/>
-    <text x="420" y="415" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white">📊 Results & Metrics</text>
-    <text x="420" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#D1FAE5">Findings + Performance</text>
+    <rect x="320" y="400" width="200" height="50" rx="8" fill="#059669" stroke="#34D399" stroke-width="2"/>
+    <text x="420" y="425" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white">📊 Results &amp; Metrics</text>
+    <text x="420" y="440" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#D1FAE5">Findings + Performance</text>
   </g>
   
-  <path d="M520 415 L560 415" stroke="#64748B" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- Converge to Results - Different paths to avoid overlap -->
+  <path d="M200 335 L200 360 L320 360 L320 400" stroke="#EF4444" stroke-width="2" marker-end="url(#arrowRed)" fill="none"/>
+  <path d="M700 335 L700 360 L520 360 L520 400" stroke="#3B82F6" stroke-width="2" marker-end="url(#arrowBlue)" fill="none"/>
   
   <!-- Human Feedback -->
   <g filter="url(#glow2)">
-    <rect x="565" y="390" width="150" height="50" rx="8" fill="#D97706" stroke="#FBBF24" stroke-width="2"/>
-    <text x="640" y="415" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">📝 Human Feedback</text>
-    <text x="640" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#FEF3C7">Rate + Correct</text>
+    <rect x="565" y="400" width="150" height="50" rx="8" fill="#D97706" stroke="#FBBF24" stroke-width="2"/>
+    <text x="640" y="425" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="white">📝 Human Feedback</text>
+    <text x="640" y="440" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#FEF3C7">Rate + Correct</text>
   </g>
   
-  <!-- Learning Loop -->
-  <path d="M640 440 L640 465 L100 465 L100 380 L180 380 L180 335" stroke="#8B5CF6" stroke-width="2" stroke-dasharray="8,4"/>
-  <text x="370" y="480" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#C4B5FD">🔄 Learning Loop - Store in Vector DB for Future Sessions</text>
+  <path d="M520 425 L560 425" stroke="#64748B" stroke-width="2" marker-end="url(#arrow)" fill="none"/>
   
   <!-- Vector DB Icon -->
-  <g transform="translate(750, 390)">
+  <g transform="translate(750, 400)">
     <rect width="100" height="50" rx="6" fill="#1E293B" stroke="#475569" stroke-width="1"/>
     <text x="50" y="20" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#94A3B8">Vector DB</text>
     <text x="50" y="35" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#64748B">(ChromaDB)</text>
@@ -148,5 +147,9 @@
     <circle cx="75" cy="40" r="4" fill="#C084FC"/>
   </g>
   
-  <path d="M715 415 L750 415" stroke="#8B5CF6" stroke-width="2" marker-end="url(#arrowPurple)"/>
+  <path d="M715 425 L750 425" stroke="#8B5CF6" stroke-width="2" marker-end="url(#arrowPurple)" fill="none"/>
+  
+  <!-- Learning Loop - Redesigned to not overlap -->
+  <path d="M640 450 L640 475 L100 475 L100 390 L150 390 L150 340" stroke="#8B5CF6" stroke-width="2" stroke-dasharray="8,4" marker-end="url(#arrowPurple)" fill="none"/>
+  <text x="370" y="495" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#C4B5FD">🔄 Learning Loop - Store in Vector DB for Future Sessions</text>
 </svg>
