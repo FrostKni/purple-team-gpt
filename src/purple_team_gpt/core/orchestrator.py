@@ -870,7 +870,7 @@ def create_orchestrator(
         Configured PurpleOrchestrator instance
     """
     if engine is None:
-        from purple_team_gpt.core.llm.engine import create_engine
+        from purple_team_gpt.core.llm import create_engine
         engine = create_engine()
     
     if vector_store is None:

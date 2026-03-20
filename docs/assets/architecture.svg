@@ -1,0 +1,171 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#1E293B"/>
+      <stop offset="100%" style="stop-color:#334155"/>
+    </linearGradient>
+    <linearGradient id="redAgentGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#EF4444"/>
+      <stop offset="100%" style="stop-color:#DC2626"/>
+    </linearGradient>
+    <linearGradient id="blueAgentGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B82F6"/>
+      <stop offset="100%" style="stop-color:#2563EB"/>
+    </linearGradient>
+    <linearGradient id="purpleGrad2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B5CF6"/>
+      <stop offset="100%" style="stop-color:#7C3AED"/>
+    </linearGradient>
+    <filter id="dropShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="900" height="600" fill="#0F172A"/>
+  
+  <!-- Grid Pattern -->
+  <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+    <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#1E293B" stroke-width="0.5"/>
+  </pattern>
+  <rect width="900" height="600" fill="url(#grid)" opacity="0.5"/>
+  
+  <!-- Title -->
+  <text x="450" y="40" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#F8FAFC">Purple Team GPT Architecture</text>
+  
+  <!-- Frontend Layer -->
+  <g filter="url(#dropShadow)">
+    <rect x="50" y="70" width="800" height="70" rx="8" fill="url(#headerGrad)" stroke="#475569" stroke-width="1"/>
+    <text x="450" y="95" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#94A3B8">FRONTEND LAYER</text>
+    
+    <!-- React Icon -->
+    <rect x="120" y="105" width="140" height="25" rx="4" fill="#0891B2"/>
+    <text x="190" y="122" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">React Dashboard</text>
+    
+    <!-- WebSocket -->
+    <rect x="280" y="105" width="140" height="25" rx="4" fill="#0891B2"/>
+    <text x="350" y="122" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">WebSocket Client</text>
+    
+    <!-- State Manager -->
+    <rect x="440" y="105" width="140" height="25" rx="4" fill="#0891B2"/>
+    <text x="510" y="122" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">State Manager</text>
+    
+    <!-- Components -->
+    <rect x="600" y="105" width="140" height="25" rx="4" fill="#0891B2"/>
+    <text x="670" y="122" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">UI Components</text>
+  </g>
+  
+  <!-- Arrow Down -->
+  <path d="M450 145 L450 165" stroke="#64748B" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#64748B"/>
+    </marker>
+  </defs>
+  
+  <!-- API Layer -->
+  <g filter="url(#dropShadow)">
+    <rect x="50" y="170" width="800" height="80" rx="8" fill="url(#headerGrad)" stroke="#475569" stroke-width="1"/>
+    <text x="450" y="195" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#94A3B8">API LAYER</text>
+    
+    <rect x="80" y="210" width="150" height="30" rx="4" fill="#059669"/>
+    <text x="155" y="230" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">FastAPI Backend</text>
+    
+    <rect x="250" y="210" width="150" height="30" rx="4" fill="#059669"/>
+    <text x="325" y="230" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">WebSocket Handler</text>
+    
+    <rect x="420" y="210" width="150" height="30" rx="4" fill="#059669"/>
+    <text x="495" y="230" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">Session Manager</text>
+    
+    <rect x="590" y="210" width="150" height="30" rx="4" fill="#059669"/>
+    <text x="665" y="230" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">Auth Middleware</text>
+  </g>
+  
+  <!-- Arrow Down -->
+  <path d="M450 255 L450 275" stroke="#64748B" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Orchestrator Layer -->
+  <g filter="url(#dropShadow)">
+    <rect x="250" y="280" width="400" height="60" rx="8" fill="url(#purpleGrad2)" stroke="#A78BFA" stroke-width="2"/>
+    <text x="450" y="305" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="white">PURPLE ORCHESTRATOR</text>
+    <text x="450" y="325" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#E9D5FF">Coordinates Red ⟷ Blue Agents</text>
+  </g>
+  
+  <!-- Arrows to Agents -->
+  <path d="M320 345 L200 380" stroke="#EF4444" stroke-width="2" marker-end="url(#arrowhead-red)"/>
+  <path d="M580 345 L700 380" stroke="#3B82F6" stroke-width="2" marker-end="url(#arrowhead-blue)"/>
+  <defs>
+    <marker id="arrowhead-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#EF4444"/>
+    </marker>
+    <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#3B82F6"/>
+    </marker>
+  </defs>
+  
+  <!-- Red Agent -->
+  <g filter="url(#dropShadow)">
+    <rect x="50" y="385" width="200" height="100" rx="8" fill="url(#redAgentGrad)" stroke="#FCA5A5" stroke-width="2"/>
+    <text x="150" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="white">🔴 RED AGENT</text>
+    <text x="150" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#FEE2E2">Offensive Operations</text>
+    <text x="150" y="450" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#FEE2E2">• Recon • Scan • Exploit</text>
+    <text x="150" y="470" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#FEE2E2">• Enumerate • Payload Gen</text>
+  </g>
+  
+  <!-- Blue Agent -->
+  <g filter="url(#dropShadow)">
+    <rect x="650" y="385" width="200" height="100" rx="8" fill="url(#blueAgentGrad)" stroke="#93C5FD" stroke-width="2"/>
+    <text x="750" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="white">🔵 BLUE AGENT</text>
+    <text x="750" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#DBEAFE">Defensive Operations</text>
+    <text x="750" y="450" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#DBEAFE">• Detect • Respond • Recover</text>
+    <text x="750" y="470" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#DBEAFE">• Monitor • Block • Isolate</text>
+  </g>
+  
+  <!-- Core Services -->
+  <g filter="url(#dropShadow)">
+    <rect x="280" y="385" width="340" height="100" rx="8" fill="#1E293B" stroke="#475569" stroke-width="1"/>
+    <text x="450" y="408" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#94A3B8">CORE SERVICES</text>
+    
+    <rect x="295" y="420" width="100" height="25" rx="4" fill="#7C3AED"/>
+    <text x="345" y="437" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">LLM Engine</text>
+    
+    <rect x="405" y="420" width="100" height="25" rx="4" fill="#7C3AED"/>
+    <text x="455" y="437" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">RAG Pipeline</text>
+    
+    <rect x="515" y="420" width="90" height="25" rx="4" fill="#7C3AED"/>
+    <text x="560" y="437" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">Tool Runner</text>
+    
+    <rect x="295" y="455" width="100" height="25" rx="4" fill="#475569"/>
+    <text x="345" y="472" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#E2E8F0">ChromaDB</text>
+    
+    <rect x="405" y="455" width="100" height="25" rx="4" fill="#475569"/>
+    <text x="455" y="472" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#E2E8F0">Embeddings</text>
+    
+    <rect x="515" y="455" width="90" height="25" rx="4" fill="#475569"/>
+    <text x="560" y="472" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#E2E8F0">Feedback</text>
+  </g>
+  
+  <!-- External Services -->
+  <g filter="url(#dropShadow)">
+    <rect x="50" y="510" width="800" height="70" rx="8" fill="#0F172A" stroke="#1E293B" stroke-width="1"/>
+    <text x="450" y="530" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#64748B">EXTERNAL SERVICES</text>
+    
+    <rect x="80" y="545" width="100" height="25" rx="4" fill="#10B981"/>
+    <text x="130" y="562" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">OpenAI</text>
+    
+    <rect x="200" y="545" width="100" height="25" rx="4" fill="#D97706"/>
+    <text x="250" y="562" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">Anthropic</text>
+    
+    <rect x="320" y="545" width="100" height="25" rx="4" fill="#EC4899"/>
+    <text x="370" y="562" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">Groq</text>
+    
+    <rect x="440" y="545" width="100" height="25" rx="4" fill="#6366F1"/>
+    <text x="490" y="562" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">DeepSeek</text>
+    
+    <rect x="560" y="545" width="100" height="25" rx="4" fill="#F59E0B"/>
+    <text x="610" y="562" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">Mistral</text>
+    
+    <rect x="680" y="545" width="100" height="25" rx="4" fill="#8B5CF6"/>
+    <text x="730" y="562" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">Ollama</text>
+  </g>
+</svg>

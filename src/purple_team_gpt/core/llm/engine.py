@@ -499,93 +499,100 @@ class LLMEngine:
             return await self._stream_chat(completion_kwargs, on_token)
         return await self._blocking_chat(completion_kwargs)
 
-    def is_configured(self) -> bool:
-        """Check if at least one provider is configured."""
-        has_standard = bool(
-            self.settings.openai_api_key or
-            self.settings.anthropic_api_key or
-            self.settings.groq_api_key or
-            self.settings.deepseek_api_key or
-            self.settings.mistral_api_key
-        )
-        has_compatible = bool(
-            self.settings.openai_compatible_base_url or
-            any(ep.enabled for ep in self.openai_compatible_endpoints)
-        )
-        return has_standard or has_compatible
+    @property
+    def available_providers(self) -> List[str]:
+        """List of available provider names."""
+        return [str(p) for p in self._failover_order]
 
-    def get_available_providers(self) -> List[str]:
-        """Get list of available providers as strings."""
-        result = []
-        for prov in self._failover_order:
-            if isinstance(prov, Provider):
-                result.append(prov.value)
-            else:
-                result.append(prov)  # openai_compatible:name
-        return result
+    @property
+    def primary_provider(self) -> Optional[str]:
+        """The primary (first) provider in failover order."""
+        return str(self._failover_order[0]) if self._failover_order else None
 
-    def get_available_models(self, provider: Union[Provider, str]) -> List[str]:
-        """Get list of available models for a provider."""
+    async def health_check(self) -> Dict[str, Any]:
+        """
+        Check health of all configured providers.
+        
+        Returns:
+            Dictionary with provider health status
+        """
+        results = {}
+        
+        for provider in self._failover_order:
+            try:
+                config = self._provider_configs.get(
+                    provider if isinstance(provider, str) else provider.value
+                )
+                if not config:
+                    results[str(provider)] = {"status": "not_configured", "error": "No config"}
+                    continue
+                
+                # Quick test with minimal tokens
+                test_kwargs = {
+                    "model": self._get_model_string(provider, config.model or "gpt-3.5-turbo", config.base_url),
+                    "messages": [{"role": "user", "content": "ping"}],
+                    "max_tokens": 5,
+                }
+                
+                if config.base_url:
+                    test_kwargs["api_base"] = config.base_url
+                
+                await acompletion(**test_kwargs)
+                results[str(provider)] = {"status": "healthy"}
+                
+            except Exception as e:
+                results[str(provider)] = {"status": "unhealthy", "error": str(e)}
+        
+        return results
+
+    def get_provider_models(self, provider: Union[Provider, str]) -> List[str]:
+        """Get available models for a provider."""
         if isinstance(provider, str) and provider.startswith("openai_compatible"):
-            # Return models from endpoint config
             config = self._provider_configs.get(provider)
             return [config.model] if config and config.model else []
         
         if isinstance(provider, Provider):
             return self.PROVIDER_MODELS.get(provider, [])
+        
         return []
 
     def add_openai_compatible_endpoint(self, endpoint: OpenAICompatibleEndpoint) -> None:
-        """Dynamically add an OpenAI-compatible endpoint.
-        
-        Args:
-            endpoint: Configuration for the new endpoint
-        """
+        """Add a new OpenAI-compatible endpoint at runtime."""
         self.openai_compatible_endpoints.append(endpoint)
         self._failover_order = self._get_failover_order()
         self._provider_configs = self._build_provider_configs()
-        logger.info(f"Added OpenAI-compatible endpoint: {endpoint.name}")
 
     def remove_openai_compatible_endpoint(self, name: str) -> bool:
-        """Remove an OpenAI-compatible endpoint by name.
-        
-        Args:
-            name: Name of the endpoint to remove
-            
-        Returns:
-            True if removed, False if not found
-        """
-        for i, ep in enumerate(self.openai_compatible_endpoints):
-            if ep.name == name:
-                self.openai_compatible_endpoints.pop(i)
-                self._failover_order = self._get_failover_order()
-                self._provider_configs = self._build_provider_configs()
-                logger.info(f"Removed OpenAI-compatible endpoint: {name}")
-                return True
+        """Remove an OpenAI-compatible endpoint by name."""
+        original_count = len(self.openai_compatible_endpoints)
+        self.openai_compatible_endpoints = [
+            ep for ep in self.openai_compatible_endpoints if ep.name != name
+        ]
+        if len(self.openai_compatible_endpoints) < original_count:
+            self._failover_order = self._get_failover_order()
+            self._provider_configs = self._build_provider_configs()
+            return True
         return False
 
+    def get_available_providers(self) -> List[Union[Provider, str]]:
+        """Get list of available providers."""
+        return self._failover_order
+
+    def get_available_models(self, provider: Union[Provider, str]) -> List[str]:
+        """Get available models for a provider (alias for get_provider_models)."""
+        return self.get_provider_models(provider)
+
+    def is_configured(self) -> bool:
+        """Check if at least one provider with an API key is configured."""
+        return any(
+            bool(config.api_key and config.api_key != "local")
+            for config in self._provider_configs.values()
+        )
+
     async def count_tokens(self, text: str) -> int:
-        """Count tokens in text (approximate)."""
-        # Simple approximation: ~4 characters per token
-        return len(text) // 4
-
-
-def create_engine(
-    settings: Optional[LLMSettings] = None,
-    openai_compatible_endpoints: Optional[List[OpenAICompatibleEndpoint]] = None,
-) -> LLMEngine:
-    """
-    Create an LLM engine instance.
-    
-    Args:
-        settings: LLM settings (uses defaults if not provided)
-        openai_compatible_endpoints: List of OpenAI-compatible endpoint configs
+        """Approximate token count for text.
         
-    Returns:
-        Configured LLMEngine instance
-    """
-    if settings is None:
-        from purple_team_gpt.config import get_settings
-        settings = get_settings().llm
-    
-    return LLMEngine(settings, openai_compatible_endpoints)
+        Uses a simple approximation of ~4 characters per token.
+        For accurate counts, use tiktoken or the model's tokenizer.
+        """
+        return len(text) // 4

@@ -17,7 +17,6 @@ from purple_team_gpt.core.llm.engine import (
     Message,
     Provider,
     ProviderConfig,
-    create_engine,
 )
 
 __all__ = [
@@ -26,5 +25,20 @@ __all__ = [
     "Message",
     "Provider",
     "ProviderConfig",
-    "create_engine",
 ]
+
+
+def create_engine(settings=None, openai_compatible_endpoints=None):
+    """Create an LLM engine with optional settings.
+    
+    Args:
+        settings: LLMSettings instance (optional, will use defaults if not provided)
+        openai_compatible_endpoints: List of OpenAICompatibleEndpoint (optional)
+    
+    Returns:
+        LLMEngine instance
+    """
+    if settings is None:
+        from purple_team_gpt.config import get_settings
+        settings = get_settings().llm
+    return LLMEngine(settings, openai_compatible_endpoints)

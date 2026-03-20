@@ -8,8 +8,8 @@ from purple_team_gpt.core.llm.engine import (
     LLMEngine,
     Message,
     Provider,
-    create_engine,
 )
+from purple_team_gpt.core.llm import create_engine
 from purple_team_gpt.config import LLMSettings
 
 
@@ -196,6 +196,7 @@ class TestLLMEngine:
         settings.mistral_api_key = None
         settings.openai_compatible_base_url = None
         settings.openai_compatible_api_key = None
+        settings.openai_compatible_model = "local"
         settings.ollama_base_url = "http://localhost:11434"
         settings.default_provider = "openai"
         settings.default_model = "gpt-4o"

@@ -1,0 +1,173 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 550">
+  <defs>
+    <linearGradient id="sidebarGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#1E1B4B"/>
+      <stop offset="100%" style="stop-color:#312E81"/>
+    </linearGradient>
+    <linearGradient id="redCardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7F1D1D"/>
+      <stop offset="100%" style="stop-color:#991B1B"/>
+    </linearGradient>
+    <linearGradient id="blueCardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1E3A8A"/>
+      <stop offset="100%" style="stop-color:#1E40AF"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="900" height="550" fill="#0F0A1F"/>
+  
+  <!-- Sidebar -->
+  <rect x="0" y="0" width="180" height="550" fill="url(#sidebarGrad)"/>
+  
+  <!-- Sidebar Logo -->
+  <rect x="20" y="20" width="140" height="50" rx="8" fill="#4C1D95"/>
+  <circle cx="50" cy="45" r="15" fill="#8B5CF6" filter="url(#glow)"/>
+  <text x="100" y="42" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="white">PURPLE</text>
+  <text x="100" y="54" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#A78BFA">TEAM GPT</text>
+  
+  <!-- Sidebar Menu -->
+  <rect x="15" y="90" width="150" height="35" rx="6" fill="#8B5CF6"/>
+  <text x="90" y="112" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="white">🎯 Attack</text>
+  
+  <rect x="15" y="135" width="150" height="35" rx="6" fill="#312E81"/>
+  <text x="90" y="157" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#A78BFA">🛡️ Defense</text>
+  
+  <rect x="15" y="180" width="150" height="35" rx="6" fill="#312E81"/>
+  <text x="90" y="202" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#A78BFA">📝 Feedback</text>
+  
+  <rect x="15" y="225" width="150" height="35" rx="6" fill="#312E81"/>
+  <text x="90" y="247" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#A78BFA">⚙️ Settings</text>
+  
+  <!-- Sidebar Status -->
+  <text x="90" y="300" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#6B7280">─── STATUS ───</text>
+  <circle cx="30" cy="330" r="5" fill="#22C55E">
+    <animate attributeName="opacity" values="1;0.5;1" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <text x="45" y="334" font-family="Arial, sans-serif" font-size="10" fill="#9CA3AF">LLM: Connected</text>
+  
+  <circle cx="30" cy="355" r="5" fill="#22C55E">
+    <animate attributeName="opacity" values="1;0.5;1" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <text x="45" y="359" font-family="Arial, sans-serif" font-size="10" fill="#9CA3AF">DB: Ready</text>
+  
+  <circle cx="30" cy="380" r="5" fill="#FBBF24"/>
+  <text x="45" y="384" font-family="Arial, sans-serif" font-size="10" fill="#9CA3AF">Session: Idle</text>
+  
+  <!-- Main Content Area -->
+  <rect x="190" y="15" width="695" height="35" rx="6" fill="#1E1B4B"/>
+  <text x="540" y="38" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="white">🎯 Attack Dashboard</text>
+  
+  <!-- Target Input Section -->
+  <rect x="190" y="60" width="340" height="90" rx="8" fill="#1E1B4B"/>
+  <text x="210" y="85" font-family="Arial, sans-serif" font-size="11" fill="#A78BFA">Target Configuration</text>
+  
+  <rect x="205" y="95" width="200" height="25" rx="4" fill="#0F0A1F" stroke="#4C1D95" stroke-width="1"/>
+  <text x="215" y="112" font-family="Arial, sans-serif" font-size="10" fill="#6B7280">192.168.1.100</text>
+  
+  <rect x="415" y="95" width="100" height="25" rx="4" fill="#8B5CF6"/>
+  <text x="465" y="112" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">▶ Start</text>
+  
+  <text x="210" y="135" font-family="Arial, sans-serif" font-size="9" fill="#6B7280">Attack Type:</text>
+  <rect x="280" y="120" width="80" height="22" rx="4" fill="#4C1D95"/>
+  <text x="320" y="135" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">Recon</text>
+  <rect x="370" y="120" width="80" height="22" rx="4" fill="#0F0A1F" stroke="#4C1D95" stroke-width="1"/>
+  <text x="410" y="135" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#A78BFA">Exploit</text>
+  
+  <!-- Status Section -->
+  <rect x="545" y="60" width="340" height="90" rx="8" fill="#1E1B4B"/>
+  <text x="565" y="85" font-family="Arial, sans-serif" font-size="11" fill="#A78BFA">Session Status</text>
+  
+  <text x="565" y="110" font-family="Arial, sans-serif" font-size="10" fill="#6B7280">Progress:</text>
+  <rect x="620" y="100" width="200" height="15" rx="4" fill="#0F0A1F"/>
+  <rect x="620" y="100" width="140" height="15" rx="4" fill="#8B5CF6">
+    <animate attributeName="width" values="0;140;140" dur="3s" repeatCount="indefinite"/>
+  </rect>
+  <text x="840" y="112" font-family="Arial, sans-serif" font-size="9" fill="#A78BFA">70%</text>
+  
+  <text x="565" y="135" font-family="Arial, sans-serif" font-size="10" fill="#22C55E">● Status: Running</text>
+  <text x="700" y="135" font-family="Arial, sans-serif" font-size="10" fill="#6B7280">Duration: 5m 23s</text>
+  
+  <!-- Agent Cards -->
+  <rect x="190" y="160" width="340" height="185" rx="10" fill="url(#redCardGrad)" stroke="#EF4444" stroke-width="2"/>
+  <rect x="200" y="170" width="320" height="30" rx="6" fill="#450A0A"/>
+  <circle cx="220" cy="185" r="8" fill="#EF4444" filter="url(#glow)">
+    <animate attributeName="fill" values="#EF4444;#F97316;#EF4444" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <text x="240" y="190" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white">RED AGENT</text>
+  <text x="480" y="190" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#FCA5A5">● Active</text>
+  
+  <!-- Red Agent Log -->
+  <rect x="200" y="210" width="320" height="125" rx="4" fill="#0F0A1F"/>
+  <text x="210" y="230" font-family="monospace" font-size="9" fill="#22C55E">[14:32:01] 🔍 Starting nmap scan...</text>
+  <text x="210" y="250" font-family="monospace" font-size="9" fill="#22C55E">[14:32:15] ✅ Port 22/tcp - OpenSSH 8.9</text>
+  <text x="210" y="270" font-family="monospace" font-size="9" fill="#22C55E">[14:32:15] ✅ Port 80/tcp - nginx 1.18</text>
+  <text x="210" y="290" font-family="monospace" font-size="9" fill="#FBBF24">[14:32:45] ⚠️ Finding: Missing X-Frame-Options</text>
+  <text x="210" y="310" font-family="monospace" font-size="9" fill="#3B82F6">[14:33:02] 🔄 Starting nikto scan...</text>
+  <text x="210" y="330" font-family="monospace" font-size="9" fill="#A78BFA">[14:33:15] ⏳ Waiting for response...</text>
+  
+  <!-- Blue Agent Card -->
+  <rect x="545" y="160" width="340" height="185" rx="10" fill="url(#blueCardGrad)" stroke="#3B82F6" stroke-width="2"/>
+  <rect x="555" y="170" width="320" height="30" rx="6" fill="#1E3A8A"/>
+  <circle cx="575" cy="185" r="8" fill="#3B82F6" filter="url(#glow)">
+    <animate attributeName="fill" values="#3B82F6;#06B6D4;#3B82F6" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <text x="595" y="190" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white">BLUE AGENT</text>
+  <text x="835" y="190" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#93C5FD">● Monitoring</text>
+  
+  <!-- Blue Agent Log -->
+  <rect x="555" y="210" width="320" height="125" rx="4" fill="#0F0A1F"/>
+  <text x="565" y="230" font-family="monospace" font-size="9" fill="#22C55E">[14:32:00] 🛡️ Monitoring system logs...</text>
+  <text x="565" y="250" font-family="monospace" font-size="9" fill="#FBBF24">[14:32:18] ⚠️ Alert: Port scan detected</text>
+  <text x="565" y="270" font-family="monospace" font-size="9" fill="#22C55E">[14:32:45] ✅ Logged reconnaissance activity</text>
+  <text x="565" y="290" font-family="monospace" font-size="9" fill="#3B82F6">[14:33:00] 📊 Updating threat intelligence</text>
+  <text x="565" y="310" font-family="monospace" font-size="9" fill="#EF4444">[14:33:20] 🚨 High: SQLi attempt blocked</text>
+  <text x="565" y="330" font-family="monospace" font-size="9" fill="#A78BFA">[14:33:35] ⏳ Analyzing patterns...</text>
+  
+  <!-- Findings Panel -->
+  <rect x="190" y="355" width="695" height="180" rx="8" fill="#1E1B4B"/>
+  <text x="210" y="380" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#A78BFA">🔍 Findings & Threats</text>
+  
+  <!-- Finding Items -->
+  <rect x="205" y="395" width="220" height="45" rx="6" fill="#7F1D1D"/>
+  <circle cx="225" cy="417" r="10" fill="#EF4444"/>
+  <text x="225" y="421" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">!</text>
+  <text x="245" y="410" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#FCA5A5">SQL Injection</text>
+  <text x="245" y="425" font-family="Arial, sans-serif" font-size="9" fill="#FEE2E2">/login endpoint vulnerable</text>
+  
+  <rect x="440" y="395" width="220" height="45" rx="6" fill="#78350F"/>
+  <circle cx="460" cy="417" r="10" fill="#F59E0B"/>
+  <text x="460" y="421" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">!</text>
+  <text x="480" y="410" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#FCD34D">Missing Headers</text>
+  <text x="480" y="425" font-family="Arial, sans-serif" font-size="9" fill="#FEF3C7">X-Frame-Options not set</text>
+  
+  <rect x="675" y="395" width="200" height="45" rx="6" fill="#14532D"/>
+  <circle cx="695" cy="417" r="10" fill="#22C55E"/>
+  <text x="695" y="421" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">✓</text>
+  <text x="715" y="410" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#86EFAC">Info Disclosure</text>
+  <text x="715" y="425" font-family="Arial, sans-serif" font-size="9" fill="#DCFCE7">Server version exposed</text>
+  
+  <!-- Metrics -->
+  <rect x="205" y="450" width="160" height="70" rx="6" fill="#0F0A1F" stroke="#4C1D95" stroke-width="1"/>
+  <text x="285" y="475" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#8B5CF6">3</text>
+  <text x="285" y="500" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#6B7280">Total Findings</text>
+  
+  <rect x="380" y="450" width="160" height="70" rx="6" fill="#0F0A1F" stroke="#4C1D95" stroke-width="1"/>
+  <text x="460" y="475" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#22C55E">47</text>
+  <text x="460" y="500" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#6B7280">Steps Executed</text>
+  
+  <rect x="555" y="450" width="160" height="70" rx="6" fill="#0F0A1F" stroke="#4C1D95" stroke-width="1"/>
+  <text x="635" y="475" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#3B82F6">2</text>
+  <text x="635" y="500" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#6B7280">Threats Blocked</text>
+  
+  <rect x="730" y="450" width="145" height="70" rx="6" fill="#0F0A1F" stroke="#4C1D95" stroke-width="1"/>
+  <text x="802" y="475" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#F59E0B">5m</text>
+  <text x="802" y="500" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#6B7280">Duration</text>
+</svg>

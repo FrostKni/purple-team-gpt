@@ -390,8 +390,17 @@ class TestPurpleOrchestrator:
         orchestrator._handle_output(session.id, "red", "Test output message")
     
     @pytest.mark.asyncio
-    async def test_emit_event(self, orchestrator, mock_event_callback):
+    async def test_emit_event(self, llm_engine, vector_store, mock_event_callback):
         """Test emitting an event."""
+        from purple_team_gpt.core.orchestrator import PurpleOrchestrator
+        
+        # Create orchestrator WITH the callback
+        orchestrator = PurpleOrchestrator(
+            engine=llm_engine,
+            vector_store=vector_store,
+            on_event=mock_event_callback,
+        )
+        
         session = orchestrator.create_session("target")
         
         await orchestrator._emit_event(
@@ -539,7 +548,7 @@ class TestCreateOrchestrator:
         mock_vs = MagicMock()
         
         # Patch where the functions are imported from in orchestrator.py
-        with patch("purple_team_gpt.core.llm.engine.create_engine", return_value=mock_engine):
+        with patch("purple_team_gpt.core.llm.create_engine", return_value=mock_engine):
             with patch("purple_team_gpt.core.rag.vector_store.create_vector_store", return_value=mock_vs):
                 orchestrator = create_orchestrator()
                 

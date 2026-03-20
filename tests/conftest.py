@@ -101,6 +101,12 @@ def llm_engine(llm_settings, mock_acompletion):
         yield LLMEngine(llm_settings)
 
 
+@pytest.fixture
+def mock_event_callback():
+    """Create a mock event callback for orchestrator tests."""
+    return MagicMock()
+
+
 # ============================================================================
 # Vector Store Fixtures
 # ============================================================================
@@ -116,7 +122,7 @@ def mock_chroma_client():
 def mock_collection():
     """Create a mock ChromaDB collection."""
     collection = MagicMock()
-    collection.count.return_value = 0
+    collection.count.return_value = 10
     collection.query.return_value = {
         "ids": [[]],
         "documents": [[]],
@@ -124,6 +130,12 @@ def mock_collection():
         "distances": [[]],
     }
     return collection
+
+
+@pytest.fixture
+def mock_chroma_collection(mock_collection):
+    """Alias for mock_collection for backward compatibility with tests."""
+    return mock_collection
 
 
 @pytest.fixture
@@ -140,11 +152,12 @@ def vector_store(chroma_settings, mock_embedding_engine, mock_chroma_client, moc
     """Create a vector store with mocked ChromaDB."""
     with patch("purple_team_gpt.core.rag.vector_store.chromadb.HttpClient", return_value=mock_chroma_client), \
          patch("purple_team_gpt.core.rag.vector_store.chromadb.PersistentClient", return_value=mock_chroma_client):
+        # Return the same mock collection for any collection name
         mock_chroma_client.get_or_create_collection.return_value = mock_collection
+        mock_chroma_client.get_collection.return_value = mock_collection
         from purple_team_gpt.core.rag.vector_store import VectorStore
         store = VectorStore(chroma_settings, mock_embedding_engine)
         store._client = mock_chroma_client
-        store._collections = {"default": mock_collection}
         yield store
 
 
@@ -179,10 +192,34 @@ def sample_finding():
 
 
 @pytest.fixture
-def red_agent(llm_engine, vector_store):
+def mock_finding_callback():
+    """Create a mock finding callback."""
+    return MagicMock()
+
+
+@pytest.fixture
+def mock_step_callback():
+    """Create a mock step callback."""
+    return MagicMock()
+
+
+@pytest.fixture
+def mock_output_callback():
+    """Create a mock output callback."""
+    return MagicMock()
+
+
+@pytest.fixture
+def red_agent(llm_engine, vector_store, mock_finding_callback, mock_step_callback, mock_output_callback):
     """Create a Red Agent for testing."""
     from purple_team_gpt.agents.red_agent import RedAgent
-    return RedAgent(llm_engine, vector_store)
+    return RedAgent(
+        llm_engine,
+        vector_store,
+        on_finding=mock_finding_callback,
+        on_step=mock_step_callback,
+        on_output=mock_output_callback,
+    )
 
 
 @pytest.fixture

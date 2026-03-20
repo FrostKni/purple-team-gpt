@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120">
+  <defs>
+    <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B5CF6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6366F1;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="redGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#EF4444;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F97316;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#06B6D4;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="400" height="120" fill="#0F172A" rx="12"/>
+  
+  <!-- Shield Icon -->
+  <g transform="translate(25, 20)" filter="url(#shadow)">
+    <path d="M40 0 L70 12 L70 45 C70 65 55 78 40 85 C25 78 10 65 10 45 L10 12 Z" fill="url(#purpleGrad)" stroke="#A78BFA" stroke-width="2"/>
+    <circle cx="40" cy="38" r="15" fill="#0F172A"/>
+    <path d="M32 38 L38 44 L50 32" stroke="#22C55E" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  
+  <!-- Red Arrow (Attack) -->
+  <g transform="translate(95, 25)">
+    <path d="M0 35 L25 35 L25 25 L40 40 L25 55 L25 45 L0 45 Z" fill="url(#redGrad)" opacity="0.9"/>
+  </g>
+  
+  <!-- Blue Arrow (Defense) -->
+  <g transform="translate(135, 25)">
+    <path d="M40 35 L15 35 L15 25 L0 40 L15 55 L15 45 L40 45 Z" fill="url(#blueGrad)" opacity="0.9"/>
+  </g>
+  
+  <!-- Title -->
+  <text x="185" y="45" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="#F8FAFC">
+    Purple Team GPT
+  </text>
+  <text x="185" y="70" font-family="Arial, sans-serif" font-size="12" fill="#94A3B8">
+    Autonomous Cybersecurity Simulation
+  </text>
+  
+  <!-- Animated dots -->
+  <circle cx="200" cy="90" r="4" fill="#8B5CF6">
+    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="215" cy="90" r="4" fill="#8B5CF6">
+    <animate attributeName="opacity" values="0.3;1;0.3" dur="1.5s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="230" cy="90" r="4" fill="#8B5CF6">
+    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" repeatCount="indefinite" begin="0.3s"/>
+  </circle>
+</svg>
