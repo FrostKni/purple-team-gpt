@@ -6,7 +6,7 @@ abstracting SQLAlchemy session management from business logic.
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from sqlalchemy import select, update, delete, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +21,7 @@ from purple_team_gpt.db.models import (
     Role,
     Permission,
     UserRole,
+    RolePermission,
     Organization,
     AuditLog,
     SessionStatus,
@@ -33,20 +34,26 @@ from purple_team_gpt.db.models import (
 logger = logging.getLogger(__name__)
 
 
+try:
+    from purple_team_gpt.agents.base import Finding as AgentFinding
+except ImportError:
+    AgentFinding = None  # type: ignore
+
+
 class SessionRepository:
     """Repository for session database operations.
-    
+
     Provides async CRUD operations for sessions, events, and findings.
     """
-    
+
     def __init__(self, session: AsyncSession):
         """Initialize repository with database session.
-        
+
         Args:
             session: SQLAlchemy async session.
         """
         self.session = session
-    
+
     async def create_session(
         self,
         target: str,
@@ -57,7 +64,7 @@ class SessionRepository:
         tags: Optional[List[str]] = None,
     ) -> SessionModel:
         """Create a new session.
-        
+
         Args:
             target: Target system/network for assessment.
             scope: Scope restrictions and constraints.
@@ -65,7 +72,7 @@ class SessionRepository:
             created_by: User ID who created the session.
             metadata: Additional session metadata.
             tags: Session tags.
-            
+
         Returns:
             Created Session model instance.
         """
@@ -83,13 +90,13 @@ class SessionRepository:
         await self.session.refresh(session)
         logger.info(f"Created session {session.id} for target {target}")
         return session
-    
+
     async def get_session(self, session_id: str) -> Optional[SessionModel]:
         """Get a session by ID.
-        
+
         Args:
             session_id: Session identifier.
-            
+
         Returns:
             Session model or None if not found.
         """
@@ -99,7 +106,7 @@ class SessionRepository:
             .where(SessionModel.id == session_id)
         )
         return result.scalar_one_or_none()
-    
+
     async def list_sessions(
         self,
         org_id: Optional[str] = None,
@@ -109,19 +116,19 @@ class SessionRepository:
         offset: int = 0,
     ) -> List[SessionModel]:
         """List sessions with optional filters.
-        
+
         Args:
             org_id: Filter by organization.
             status: Filter by status.
             created_by: Filter by creator.
             limit: Maximum results.
             offset: Pagination offset.
-            
+
         Returns:
             List of Session models.
         """
         query = select(SessionModel)
-        
+
         conditions = []
         if org_id:
             conditions.append(SessionModel.org_id == org_id)
@@ -129,15 +136,15 @@ class SessionRepository:
             conditions.append(SessionModel.status == status)
         if created_by:
             conditions.append(SessionModel.created_by == created_by)
-        
+
         if conditions:
             query = query.where(and_(*conditions))
-        
+
         query = query.order_by(SessionModel.created_at.desc()).limit(limit).offset(offset)
-        
+
         result = await self.session.execute(query)
         return list(result.scalars().all())
-    
+
     async def update_session_status(
         self,
         session_id: str,
@@ -146,13 +153,13 @@ class SessionRepository:
         completed_at: Optional[datetime] = None,
     ) -> Optional[SessionModel]:
         """Update session status.
-        
+
         Args:
             session_id: Session identifier.
             status: New status value.
             started_at: When session started.
             completed_at: When session completed.
-            
+
         Returns:
             Updated Session model or None.
         """
@@ -164,14 +171,12 @@ class SessionRepository:
             update_data["started_at"] = started_at
         if completed_at is not None:
             update_data["completed_at"] = completed_at
-        
+
         await self.session.execute(
-            update(SessionModel)
-            .where(SessionModel.id == session_id)
-            .values(**update_data)
+            update(SessionModel).where(SessionModel.id == session_id).values(**update_data)
         )
         return await self.get_session(session_id)
-    
+
     async def update_session_metrics(
         self,
         session_id: str,
@@ -183,7 +188,7 @@ class SessionRepository:
         total_events: Optional[int] = None,
     ) -> None:
         """Update session metrics.
-        
+
         Args:
             session_id: Session identifier.
             red_findings_count: Count of red agent findings.
@@ -194,7 +199,7 @@ class SessionRepository:
             total_events: Total events recorded.
         """
         update_data = {"last_activity_at": datetime.utcnow()}
-        
+
         if red_findings_count is not None:
             update_data["red_findings_count"] = red_findings_count
         if blue_findings_count is not None:
@@ -207,19 +212,17 @@ class SessionRepository:
             update_data["total_steps"] = total_steps
         if total_events is not None:
             update_data["total_events"] = total_events
-        
+
         await self.session.execute(
-            update(SessionModel)
-            .where(SessionModel.id == session_id)
-            .values(**update_data)
+            update(SessionModel).where(SessionModel.id == session_id).values(**update_data)
         )
-    
+
     async def delete_session(self, session_id: str) -> bool:
         """Delete a session and all related data.
-        
+
         Args:
             session_id: Session identifier.
-            
+
         Returns:
             True if deleted, False if not found.
         """
@@ -227,9 +230,9 @@ class SessionRepository:
             delete(SessionModel).where(SessionModel.id == session_id)
         )
         return result.rowcount > 0
-    
+
     # ==================== Session Events ====================
-    
+
     async def add_event(
         self,
         session_id: str,
@@ -238,13 +241,13 @@ class SessionRepository:
         data: Dict[str, Any],
     ) -> SessionEvent:
         """Add an event to a session.
-        
+
         Args:
             session_id: Session identifier.
             agent: Agent that emitted the event.
             event_type: Type of event.
             data: Event data.
-            
+
         Returns:
             Created SessionEvent instance.
         """
@@ -255,7 +258,7 @@ class SessionRepository:
             data=data,
         )
         self.session.add(event)
-        
+
         # Update session event count
         await self.session.execute(
             update(SessionModel)
@@ -265,10 +268,10 @@ class SessionRepository:
                 last_activity_at=datetime.utcnow(),
             )
         )
-        
+
         await self.session.flush()
         return event
-    
+
     async def get_events(
         self,
         session_id: str,
@@ -277,36 +280,36 @@ class SessionRepository:
         limit: int = 100,
     ) -> List[SessionEvent]:
         """Get events for a session.
-        
+
         Args:
             session_id: Session identifier.
             agent: Filter by agent.
             event_type: Filter by event type.
             limit: Maximum results.
-            
+
         Returns:
             List of SessionEvent instances.
         """
         query = select(SessionEvent).where(SessionEvent.session_id == session_id)
-        
+
         if agent:
             query = query.where(SessionEvent.agent == agent)
         if event_type:
             query = query.where(SessionEvent.event_type == event_type)
-        
+
         query = query.order_by(SessionEvent.created_at).limit(limit)
-        
+
         result = await self.session.execute(query)
         return list(result.scalars().all())
-    
+
     # ==================== Findings ====================
-    
+
     async def add_finding(
         self,
         session_id: str,
-        agent: str,
-        title: str,
-        severity: str,
+        agent_or_finding: Any,
+        title: Optional[str] = None,
+        severity: Optional[str] = None,
         description: Optional[str] = None,
         evidence: Optional[str] = None,
         recommendation: Optional[str] = None,
@@ -318,12 +321,16 @@ class SessionRepository:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Finding:
         """Add a finding to a session.
-        
+
+        Can be called in two ways:
+        1. With a Finding object: add_finding(session_id, finding, agent_name)
+        2. With individual parameters: add_finding(session_id, agent, title, severity, ...)
+
         Args:
             session_id: Session identifier.
-            agent: Agent that found the issue.
-            title: Finding title.
-            severity: Severity level.
+            agent_or_finding: Either the agent name (str) or a Finding object from agents/base.py.
+            title: Finding title (required if agent_or_finding is a string).
+            severity: Severity level (required if agent_or_finding is a string).
             description: Finding description.
             evidence: Evidence found.
             recommendation: Remediation recommendation.
@@ -333,10 +340,26 @@ class SessionRepository:
             tool: Tool used to find the issue.
             raw_output: Raw tool output.
             metadata: Additional metadata.
-            
+
         Returns:
             Created Finding instance.
         """
+        # Check if agent_or_finding is a Finding object from agents/base.py
+        if isinstance(agent_or_finding, str):
+            # It's the agent string - use individual parameters
+            agent = agent_or_finding
+        else:
+            # It's a Finding object - extract fields
+            finding_obj = agent_or_finding
+            agent = title if title else "unknown"
+            title = finding_obj.title
+            severity = finding_obj.severity
+            description = finding_obj.description
+            evidence = finding_obj.evidence
+            recommendation = finding_obj.recommendation
+            cve = finding_obj.cve
+            cvss_score = float(finding_obj.cvss_score) if finding_obj.cvss_score else None
+            tool = finding_obj.tool
         finding = Finding(
             session_id=session_id,
             agent=agent,
@@ -353,28 +376,26 @@ class SessionRepository:
             finding_metadata=metadata or {},
         )
         self.session.add(finding)
-        
+
         # Update session finding counts
         update_data = {"last_activity_at": datetime.utcnow()}
         if agent == "red":
             update_data["red_findings_count"] = SessionModel.red_findings_count + 1
         elif agent == "blue":
             update_data["blue_findings_count"] = SessionModel.blue_findings_count + 1
-        
+
         if severity == "critical":
             update_data["critical_findings_count"] = SessionModel.critical_findings_count + 1
         elif severity == "high":
             update_data["high_findings_count"] = SessionModel.high_findings_count + 1
-        
+
         await self.session.execute(
-            update(SessionModel)
-            .where(SessionModel.id == session_id)
-            .values(**update_data)
+            update(SessionModel).where(SessionModel.id == session_id).values(**update_data)
         )
-        
+
         await self.session.flush()
         return finding
-    
+
     async def get_findings(
         self,
         session_id: str,
@@ -383,30 +404,30 @@ class SessionRepository:
         limit: int = 100,
     ) -> List[Finding]:
         """Get findings for a session.
-        
+
         Args:
             session_id: Session identifier.
             agent: Filter by agent.
             severity: Filter by severity.
             limit: Maximum results.
-            
+
         Returns:
             List of Finding instances.
         """
         query = select(Finding).where(Finding.session_id == session_id)
-        
+
         if agent:
             query = query.where(Finding.agent == agent)
         if severity:
             query = query.where(Finding.severity == severity)
-        
+
         query = query.order_by(Finding.created_at).limit(limit)
-        
+
         result = await self.session.execute(query)
         return list(result.scalars().all())
-    
+
     # ==================== Agent State ====================
-    
+
     async def save_agent_state(
         self,
         session_id: str,
@@ -416,14 +437,14 @@ class SessionRepository:
         steps: Optional[List[Dict[str, Any]]] = None,
     ) -> AgentState:
         """Save or update agent state.
-        
+
         Args:
             session_id: Session identifier.
             agent_type: Type of agent (red/blue).
             state: Agent state.
             conversation_history: Conversation history.
             steps: Step history.
-            
+
         Returns:
             Created or updated AgentState instance.
         """
@@ -437,7 +458,7 @@ class SessionRepository:
             )
         )
         agent_state = result.scalar_one_or_none()
-        
+
         if agent_state:
             # Update existing
             agent_state.state = state
@@ -456,21 +477,21 @@ class SessionRepository:
                 steps=steps or [],
             )
             self.session.add(agent_state)
-        
+
         await self.session.flush()
         return agent_state
-    
+
     async def get_agent_state(
         self,
         session_id: str,
         agent_type: str,
     ) -> Optional[AgentState]:
         """Get agent state.
-        
+
         Args:
             session_id: Session identifier.
             agent_type: Type of agent (red/blue).
-            
+
         Returns:
             AgentState instance or None.
         """
@@ -487,15 +508,15 @@ class SessionRepository:
 
 class AuditRepository:
     """Repository for audit log operations."""
-    
+
     def __init__(self, session: AsyncSession):
         """Initialize repository.
-        
+
         Args:
             session: SQLAlchemy async session.
         """
         self.session = session
-    
+
     async def log_event(
         self,
         event_type: str,
@@ -516,7 +537,7 @@ class AuditRepository:
         error_message: Optional[str] = None,
     ) -> AuditLog:
         """Create an audit log entry.
-        
+
         Args:
             event_type: Type of event.
             event_category: Category of event.
@@ -534,7 +555,7 @@ class AuditRepository:
             request_path: HTTP path.
             success: Whether the event succeeded.
             error_message: Error message if failed.
-            
+
         Returns:
             Created AuditLog instance.
         """
@@ -559,7 +580,7 @@ class AuditRepository:
         self.session.add(audit_log)
         await self.session.flush()
         return audit_log
-    
+
     async def get_user_audit_logs(
         self,
         user_id: str,
@@ -567,12 +588,12 @@ class AuditRepository:
         offset: int = 0,
     ) -> List[AuditLog]:
         """Get audit logs for a user.
-        
+
         Args:
             user_id: User identifier.
             limit: Maximum results.
             offset: Pagination offset.
-            
+
         Returns:
             List of AuditLog instances.
         """
@@ -588,51 +609,47 @@ class AuditRepository:
 
 class UserRepository:
     """Repository for user operations."""
-    
+
     def __init__(self, session: AsyncSession):
         """Initialize repository.
-        
+
         Args:
             session: SQLAlchemy async session.
         """
         self.session = session
-    
+
     async def get_user_by_email(self, email: str) -> Optional[User]:
         """Get user by email.
-        
+
         Args:
             email: User email.
-            
+
         Returns:
             User instance or None.
         """
-        result = await self.session.execute(
-            select(User).where(User.email == email.lower())
-        )
+        result = await self.session.execute(select(User).where(User.email == email.lower()))
         return result.scalar_one_or_none()
-    
+
     async def get_user_by_id(self, user_id: str) -> Optional[User]:
         """Get user by ID.
-        
+
         Args:
             user_id: User identifier.
-            
+
         Returns:
             User instance or None.
         """
         result = await self.session.execute(
-            select(User)
-            .options(selectinload(User.roles))
-            .where(User.id == user_id)
+            select(User).options(selectinload(User.roles)).where(User.id == user_id)
         )
         return result.scalar_one_or_none()
-    
+
     async def get_user_permissions(self, user_id: str) -> List[str]:
         """Get all permissions for a user.
-        
+
         Args:
             user_id: User identifier.
-            
+
         Returns:
             List of permission names.
         """

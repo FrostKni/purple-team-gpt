@@ -21,13 +21,15 @@ logger = logging.getLogger(__name__)
 
 class AgentRole(str, Enum):
     """Agent role types."""
+
     RED = "red"
     BLUE = "blue"
     PURPLE = "purple"
 
 
-class AgentState(str, Enum):
+class AgentStateEnum(str, Enum):
     """Agent execution states."""
+
     IDLE = "idle"
     RUNNING = "running"
     PAUSED = "paused"
@@ -35,10 +37,13 @@ class AgentState(str, Enum):
     ERROR = "error"
 
 
+AgentState = AgentStateEnum  # Backward compatibility alias
+
+
 @dataclass
 class AgentAction:
     """Represents an action the agent wants to take.
-    
+
     Actions can be:
     - execute: Run a tool or command
     - finding: Report a security finding
@@ -46,6 +51,7 @@ class AgentAction:
     - wait: Pause for a duration
     - complete: Mark assessment as complete
     """
+
     action_type: str  # "execute", "finding", "query_rag", "wait", "complete"
     tool: Optional[str] = None
     command: Optional[str] = None
@@ -57,9 +63,10 @@ class AgentAction:
 @dataclass
 class AgentStep:
     """A single step in agent execution.
-    
+
     Records the action taken and its result for auditing and learning.
     """
+
     step_num: int
     action: AgentAction
     result: Optional[str] = None
@@ -72,9 +79,10 @@ class AgentStep:
 @dataclass
 class Finding:
     """A security finding from an agent.
-    
+
     Represents discovered vulnerabilities, misconfigurations, or detections.
     """
+
     title: str
     severity: str  # Critical, High, Medium, Low, Info
     description: str
@@ -84,7 +92,7 @@ class Finding:
     cve: Optional[str] = None
     cvss_score: Optional[float] = None
     timestamp: datetime = field(default_factory=datetime.utcnow)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert finding to dictionary."""
         return {
@@ -102,22 +110,22 @@ class Finding:
 
 class BaseAgent(ABC):
     """Abstract base class for all security agents.
-    
+
     Provides common functionality for:
     - LLM interaction via conversation management
     - RAG context retrieval
     - Action parsing from LLM responses
     - Finding and step tracking
     - Callback notifications
-    
+
     Subclasses must implement:
     - system_prompt property: Agent-specific system prompt
     - plan(): Generate actions based on context
     - execute_action(): Execute a single action
     """
-    
+
     role: AgentRole = AgentRole.PURPLE
-    
+
     def __init__(
         self,
         engine: LLMEngine,
@@ -128,7 +136,7 @@ class BaseAgent(ABC):
         max_steps: int = 50,
     ):
         """Initialize the base agent.
-        
+
         Args:
             engine: LLM engine for conversation
             vector_store: Vector store for RAG queries
@@ -143,78 +151,78 @@ class BaseAgent(ABC):
         self.on_finding = on_finding
         self.on_output = on_output
         self.max_steps = max_steps
-        
+
         # Session state
         self.conversation = Conversation()
-        self.state = AgentState.IDLE
+        self.state = AgentStateEnum.IDLE
         self.steps: List[AgentStep] = []
         self.findings: List[Finding] = []
         self.target = ""
         self.scope = ""
         self._step_counter = 0
-    
+
     @property
     @abstractmethod
     def system_prompt(self) -> str:
         """Return the system prompt for this agent.
-        
+
         The system prompt defines the agent's role, capabilities, rules,
         and output format expectations.
         """
         pass
-    
+
     @abstractmethod
     async def plan(self, context: str) -> List[AgentAction]:
         """Plan next actions based on context.
-        
+
         Args:
             context: Current situation description
-            
+
         Returns:
             List of actions to execute
         """
         pass
-    
+
     @abstractmethod
     async def execute_action(self, action: AgentAction) -> str:
         """Execute a single action.
-        
+
         Args:
             action: The action to execute
-            
+
         Returns:
             Result string from the action
         """
         pass
-    
+
     def initialize(self, target: str, scope: str = "") -> None:
         """Initialize agent for a new session.
-        
+
         Args:
             target: Target system/network for assessment
             scope: Scope restrictions and constraints
         """
         self.target = target
         self.scope = scope
-        
+
         # Reset conversation with system prompt
         self.conversation = Conversation()
         self.conversation.system_prompt = self.system_prompt
-        
+
         # Reset state
         self.steps = []
         self.findings = []
         self._step_counter = 0
-        self.state = AgentState.IDLE
-        
+        self.state = AgentStateEnum.IDLE
+
         logger.info(f"{self.role.value.title()} Agent initialized for target: {target}")
-    
+
     async def query_rag(self, query: str) -> str:
         """Query vector store for relevant context.
-        
+
         Args:
             query: Search query for relevant patterns
-            
+
         Returns:
             Aggregated context string from vector store
         """
@@ -226,39 +234,39 @@ class BaseAgent(ABC):
         except Exception as e:
             logger.warning(f"RAG query failed: {e}")
             return ""
-    
+
     def _parse_actions(self, response: str) -> List[AgentAction]:
         """Parse JSON action blocks from LLM response.
-        
+
         Supports multiple JSON blocks wrapped in ```json...``` markers.
         Also attempts to parse raw JSON if no markers found.
-        
+
         Args:
             response: Raw LLM response text
-            
+
         Returns:
             List of parsed AgentAction objects
         """
         actions = []
-        
+
         # Pattern 1: JSON blocks with markers (preferred — unambiguous)
-        json_pattern = r'```json\s*(.*?)\s*```'
+        json_pattern = r"```json\s*(.*?)\s*```"
         matches = re.findall(json_pattern, response, re.DOTALL)
-        
+
         if not matches:
             logger.warning(
                 "No ```json``` blocks found in LLM response. "
                 "The model may not be following the expected output format. "
                 f"Response preview: {response[:200]!r}"
             )
-        
+
         for match in matches:
             try:
                 data = json.loads(match.strip())
-                
+
                 # Handle both 'action' and 'action_type' keys
                 action_type = data.get("action") or data.get("action_type", "unknown")
-                
+
                 action = AgentAction(
                     action_type=action_type,
                     tool=data.get("tool"),
@@ -266,7 +274,7 @@ class BaseAgent(ABC):
                     parameters=data.get("parameters", {}),
                     explanation=data.get("explanation", ""),
                 )
-                
+
                 # For findings, extract finding-specific fields into parameters
                 if action_type in ("finding", "detection"):
                     action.parameters = {
@@ -276,20 +284,20 @@ class BaseAgent(ABC):
                         "evidence": data.get("evidence", ""),
                         "recommendation": data.get("recommendation") or data.get("response", ""),
                     }
-                
+
                 actions.append(action)
                 logger.debug(f"Parsed action: {action_type}")
-                
+
             except json.JSONDecodeError as e:
                 logger.warning(f"Failed to parse JSON action block: {match[:100]!r} — Error: {e}")
             except Exception as e:
                 logger.warning(f"Error processing action block: {e}")
-        
+
         return actions
-    
+
     def add_finding(self, finding: Finding) -> None:
         """Add a finding and notify callback.
-        
+
         Args:
             finding: The finding to add
         """
@@ -299,10 +307,10 @@ class BaseAgent(ABC):
                 self.on_finding(finding)
             except Exception as e:
                 logger.warning(f"Finding callback error: {e}")
-    
+
     def add_step(self, step: AgentStep) -> None:
         """Add a step and notify callback.
-        
+
         Args:
             step: The step to add
         """
@@ -312,10 +320,10 @@ class BaseAgent(ABC):
                 self.on_step(step)
             except Exception as e:
                 logger.warning(f"Step callback error: {e}")
-    
+
     def output(self, message: str) -> None:
         """Send output to callback.
-        
+
         Args:
             message: Output message to send
         """
@@ -324,34 +332,34 @@ class BaseAgent(ABC):
                 self.on_output(message)
             except Exception as e:
                 logger.warning(f"Output callback error: {e}")
-    
+
     async def store_interaction(self, content: str, metadata: Dict[str, Any]) -> None:
         """Store interaction in vector store for learning.
-        
+
         Args:
             content: The interaction content to store
             metadata: Metadata associated with the interaction
         """
         try:
             collection = f"{self.role.value}_patterns"
-            
+
             # Add role metadata
             metadata["role"] = self.role.value
             metadata["target"] = self.target
-            
+
             await self.vector_store.add(
                 collection_name=collection,
                 documents=[content],
                 metadatas=[metadata],
             )
             logger.debug(f"Stored interaction in {collection}")
-            
+
         except Exception as e:
             logger.warning(f"Failed to store interaction: {e}")
-    
+
     def get_summary(self) -> Dict[str, Any]:
         """Get summary of current session.
-        
+
         Returns:
             Dictionary with session summary
         """
@@ -359,7 +367,7 @@ class BaseAgent(ABC):
         for finding in self.findings:
             sev = finding.severity
             severity_counts[sev] = severity_counts.get(sev, 0) + 1
-        
+
         return {
             "role": self.role.value,
             "state": self.state.value,
@@ -370,20 +378,20 @@ class BaseAgent(ABC):
             "findings_by_severity": severity_counts,
             "findings": [f.to_dict() for f in self.findings],
         }
-    
+
     def pause(self) -> None:
         """Pause agent execution."""
-        if self.state == AgentState.RUNNING:
-            self.state = AgentState.PAUSED
+        if self.state == AgentStateEnum.RUNNING:
+            self.state = AgentStateEnum.PAUSED
             logger.info(f"{self.role.value.title()} Agent paused")
-    
+
     def resume(self) -> None:
         """Resume agent execution."""
-        if self.state == AgentState.PAUSED:
-            self.state = AgentState.RUNNING
+        if self.state == AgentStateEnum.PAUSED:
+            self.state = AgentStateEnum.RUNNING
             logger.info(f"{self.role.value.title()} Agent resumed")
-    
+
     def stop(self) -> None:
         """Stop agent execution."""
-        self.state = AgentState.ERROR
+        self.state = AgentStateEnum.ERROR
         logger.info(f"{self.role.value.title()} Agent stopped")

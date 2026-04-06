@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { WebSocketEvent } from '../lib/api';
+import { WebSocketEvent, getToken } from '../lib/api';
 
 interface UseWebSocketOptions {
   sessionId: string;
@@ -77,7 +77,7 @@ export function useWebSocket({
   }, []);
 
   // Connect to WebSocket
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     // Clear any existing connection
     if (wsRef.current) {
       wsRef.current.close();
@@ -86,10 +86,26 @@ export function useWebSocket({
 
     clearTimers();
 
+    // Get authentication token
+    const token = await getToken();
+    if (!token) {
+      console.error('WebSocket: No auth token available');
+      setState(prev => ({
+        ...prev,
+        lastError: 'Authentication required',
+        isConnected: false,
+      }));
+      return;
+    }
+
     try {
-      const wsUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace('http', 'ws');
+      // Use current host for WebSocket connection (goes through Vite proxy)
+      const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = typeof window !== 'undefined' ? window.location.host : 'localhost:5000';
+      const wsUrl = `${protocol}//${host}`;
       // Connect to general WebSocket endpoint if no session, otherwise use session-specific endpoint
-      const endpoint = sessionId ? `/ws/session/${sessionId}` : '/ws';
+      // Include token for authentication
+      const endpoint = sessionId ? `/ws/session/${sessionId}?token=${token}` : `/ws?token=${token}`;
       const ws = new WebSocket(`${wsUrl}${endpoint}`);
       wsRef.current = ws;
       isManualDisconnect.current = false;

@@ -15,7 +15,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
-from purple_team_gpt.core.orchestrator import SessionStatus, PurpleOrchestrator
+from purple_team_gpt.core.orchestrator import SimulationStatus, PurpleOrchestrator
 from purple_team_gpt.backend.security import (
     get_current_user,
     rate_limit_dependency,
@@ -35,7 +35,7 @@ _orchestrator: Optional[PurpleOrchestrator] = None
 
 def set_orchestrator(orch: PurpleOrchestrator) -> None:
     """Set the orchestrator reference.
-    
+
     Called by main.py during application startup.
     """
     global _orchestrator
@@ -44,7 +44,7 @@ def set_orchestrator(orch: PurpleOrchestrator) -> None:
 
 def get_orchestrator() -> PurpleOrchestrator:
     """Get the orchestrator instance.
-    
+
     Raises HTTPException if orchestrator is not initialized.
     """
     if _orchestrator is None:
@@ -55,16 +55,17 @@ def get_orchestrator() -> PurpleOrchestrator:
 # Request/Response Models
 class SessionCreate(BaseModel):
     """Request model for creating a new session."""
+
     target: str = Field(..., description="Target system/network for assessment")
     scope: str = Field("", description="Scope restrictions and constraints")
     metadata: Optional[dict] = Field(default=None, description="Additional session metadata")
-    
+
     @field_validator("target")
     @classmethod
     def validate_target_field(cls, v: str) -> str:
         """Validate target field."""
         return validate_target(v)
-    
+
     @field_validator("scope")
     @classmethod
     def validate_scope_field(cls, v: str) -> str:
@@ -74,6 +75,7 @@ class SessionCreate(BaseModel):
 
 class SessionResponse(BaseModel):
     """Response model for session data."""
+
     id: str
     target: str
     scope: str
@@ -85,12 +87,14 @@ class SessionResponse(BaseModel):
 
 class SessionListResponse(BaseModel):
     """Response model for session list."""
+
     sessions: List[SessionResponse]
     total: int
 
 
 class SessionMetricsResponse(BaseModel):
     """Response model for session metrics."""
+
     session_id: str
     target: str
     scope: str
@@ -104,6 +108,7 @@ class SessionMetricsResponse(BaseModel):
 
 class SessionActionResponse(BaseModel):
     """Response model for session actions (start, stop, pause, resume)."""
+
     message: str
     session_id: str
     status: str
@@ -117,29 +122,29 @@ async def create_session(
     _rate: dict = Depends(rate_limit_dependency),
 ) -> SessionResponse:
     """Create a new simulation session.
-    
+
     Creates a new session with Red and Blue agents initialized for
     the specified target. The session starts in PENDING status.
-    
+
     Requires authentication.
     """
     orch = get_orchestrator()
-    
+
     # Validate and sanitize inputs
     target = validate_target(data.target)
     scope = sanitize_input(data.scope, max_length=2000)
-    
+
     session = orch.create_session(
         target=target,
         scope=scope,
         metadata=data.metadata,
     )
-    
+
     logger.info(
         f"User {current_user.get('sub', 'unknown')} created session {session.id} "
         f"for target {target}"
     )
-    
+
     return SessionResponse(
         id=session.id,
         target=session.target,
@@ -159,24 +164,24 @@ async def list_sessions(
     _rate: dict = Depends(rate_limit_dependency),
 ) -> SessionListResponse:
     """List all sessions, optionally filtered by status.
-    
+
     Returns a list of all sessions, with optional filtering by status.
     Requires authentication.
     """
     orch = get_orchestrator()
-    
+
     status_filter = None
     if status:
         try:
-            status_filter = SessionStatus(status.lower())
+            status_filter = SimulationStatus(status.lower())
         except ValueError:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid status. Valid values: {[s.value for s in SessionStatus]}",
+                detail=f"Invalid status. Valid values: {[s.value for s in SimulationStatus]}",
             )
-    
+
     sessions = orch.list_sessions(status=status_filter)
-    
+
     return SessionListResponse(
         sessions=[
             SessionResponse(
@@ -202,19 +207,19 @@ async def get_session(
     _rate: dict = Depends(rate_limit_dependency),
 ) -> SessionResponse:
     """Get session details by ID.
-    
+
     Returns detailed information about a specific session.
     Requires authentication.
     """
     orch = get_orchestrator()
-    
+
     # Validate session ID format
     session_id = validate_session_id(session_id)
-    
+
     session = orch.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     return SessionResponse(
         id=session.id,
         target=session.target,
@@ -234,37 +239,35 @@ async def start_session(
     _rate: dict = Depends(rate_limit_dependency),
 ) -> SessionActionResponse:
     """Start a simulation session.
-    
+
     Starts the Red and Blue agents for the session in the background.
     The session must be in PENDING or PAUSED status.
     Requires authentication.
     """
     orch = get_orchestrator()
-    
+
     # Validate session ID format
     session_id = validate_session_id(session_id)
-    
+
     session = orch.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    
-    if session.status == SessionStatus.RUNNING:
+
+    if session.status == SimulationStatus.RUNNING:
         raise HTTPException(status_code=400, detail="Session already running")
-    
-    if session.status == SessionStatus.COMPLETED:
+
+    if session.status == SimulationStatus.COMPLETED:
         raise HTTPException(status_code=400, detail="Cannot restart a completed session")
-    
+
     # Start session in background
     orch.start_session_background(session_id)
-    
-    logger.info(
-        f"User {current_user.get('sub', 'unknown')} started session {session_id}"
-    )
-    
+
+    logger.info(f"User {current_user.get('sub', 'unknown')} started session {session_id}")
+
     return SessionActionResponse(
         message="Session started",
         session_id=session_id,
-        status=SessionStatus.RUNNING.value,
+        status=SimulationStatus.RUNNING.value,
     )
 
 
@@ -276,33 +279,31 @@ async def pause_session(
     _rate: dict = Depends(rate_limit_dependency),
 ) -> SessionActionResponse:
     """Pause a running session.
-    
+
     Pauses both Red and Blue agents. Can be resumed later.
     Requires authentication.
     """
     orch = get_orchestrator()
-    
+
     # Validate session ID format
     session_id = validate_session_id(session_id)
-    
+
     session = orch.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     if not orch.pause_session(session_id):
         raise HTTPException(
             status_code=400,
             detail="Cannot pause session - not running or not found",
         )
-    
-    logger.info(
-        f"User {current_user.get('sub', 'unknown')} paused session {session_id}"
-    )
-    
+
+    logger.info(f"User {current_user.get('sub', 'unknown')} paused session {session_id}")
+
     return SessionActionResponse(
         message="Session paused",
         session_id=session_id,
-        status=SessionStatus.PAUSED.value,
+        status=SimulationStatus.PAUSED.value,
     )
 
 
@@ -314,33 +315,31 @@ async def resume_session(
     _rate: dict = Depends(rate_limit_dependency),
 ) -> SessionActionResponse:
     """Resume a paused session.
-    
+
     Resumes execution of both Red and Blue agents.
     Requires authentication.
     """
     orch = get_orchestrator()
-    
+
     # Validate session ID format
     session_id = validate_session_id(session_id)
-    
+
     session = orch.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     if not orch.resume_session(session_id):
         raise HTTPException(
             status_code=400,
             detail="Cannot resume session - not paused or not found",
         )
-    
-    logger.info(
-        f"User {current_user.get('sub', 'unknown')} resumed session {session_id}"
-    )
-    
+
+    logger.info(f"User {current_user.get('sub', 'unknown')} resumed session {session_id}")
+
     return SessionActionResponse(
         message="Session resumed",
         session_id=session_id,
-        status=SessionStatus.RUNNING.value,
+        status=SimulationStatus.RUNNING.value,
     )
 
 
@@ -352,27 +351,25 @@ async def stop_session(
     _rate: dict = Depends(rate_limit_dependency),
 ) -> SessionActionResponse:
     """Stop a session.
-    
+
     Stops the session and returns the final state. Cannot be resumed.
     Requires authentication.
     """
     orch = get_orchestrator()
-    
+
     # Validate session ID format
     session_id = validate_session_id(session_id)
-    
+
     session = orch.stop_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    
-    logger.info(
-        f"User {current_user.get('sub', 'unknown')} stopped session {session_id}"
-    )
-    
+
+    logger.info(f"User {current_user.get('sub', 'unknown')} stopped session {session_id}")
+
     return SessionActionResponse(
         message="Session stopped",
         session_id=session_id,
-        status=SessionStatus.COMPLETED.value,
+        status=SimulationStatus.COMPLETED.value,
     )
 
 
@@ -384,20 +381,20 @@ async def get_session_metrics(
     _rate: dict = Depends(rate_limit_dependency),
 ) -> SessionMetricsResponse:
     """Get detailed metrics for a session.
-    
+
     Returns comprehensive metrics including findings counts,
     step counts, duration, and agent summaries.
     Requires authentication.
     """
     orch = get_orchestrator()
-    
+
     # Validate session ID format
     session_id = validate_session_id(session_id)
-    
+
     metrics = orch.get_metrics(session_id)
     if not metrics:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     return SessionMetricsResponse(
         session_id=metrics["session_id"],
         target=metrics["target"],
@@ -419,20 +416,54 @@ async def delete_session(
     _rate: dict = Depends(rate_limit_dependency),
 ) -> dict:
     """Delete a session.
-    
+
     Stops the session if running and removes all associated data.
     Requires authentication.
     """
     orch = get_orchestrator()
-    
+
     # Validate session ID format
     session_id = validate_session_id(session_id)
-    
+
     if not orch.delete_session(session_id):
         raise HTTPException(status_code=404, detail="Session not found")
-    
-    logger.info(
-        f"User {current_user.get('sub', 'unknown')} deleted session {session_id}"
-    )
-    
+
+    logger.info(f"User {current_user.get('sub', 'unknown')} deleted session {session_id}")
+
     return {"message": "Session deleted", "session_id": session_id}
+
+
+class SessionFindingsResponse(BaseModel):
+    """Response model for session findings."""
+
+    red_findings: List[dict]
+    blue_detections: List[dict]
+
+
+@router.get("/{session_id}/findings/", response_model=SessionFindingsResponse)
+async def get_session_findings(
+    session_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    _rate: dict = Depends(rate_limit_dependency),
+) -> SessionFindingsResponse:
+    """Get findings for a session.
+
+    Returns all findings from Red and Blue agents for the session.
+    Requires authentication.
+    """
+    orch = get_orchestrator()
+
+    session_id = validate_session_id(session_id)
+
+    session = orch.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    red_findings = [f.to_dict() for f in session.red_findings]
+    blue_detections = [f.to_dict() for f in session.blue_findings]
+
+    return SessionFindingsResponse(
+        red_findings=red_findings,
+        blue_detections=blue_detections,
+    )

@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 from purple_team_gpt.agents.base import (
     AgentAction,
     AgentRole,
-    AgentState,
+    AgentStateEnum,
     AgentStep,
     BaseAgent,
     Finding,
@@ -146,6 +146,7 @@ IMPORTANT:
 
 class ThreatLevel(str, Enum):
     """Threat severity levels for response prioritization."""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -155,6 +156,7 @@ class ThreatLevel(str, Enum):
 
 class DefenseStage(str, Enum):
     """Stages of defense operations."""
+
     MONITOR = "monitor"
     DETECT = "detect"
     ANALYZE = "analyze"
@@ -168,6 +170,7 @@ class DefenseStage(str, Enum):
 @dataclass
 class ThreatEvent:
     """Represents a detected threat event."""
+
     event_type: str
     source: str
     severity: ThreatLevel
@@ -178,7 +181,7 @@ class ThreatEvent:
     target_system: Optional[str] = None
     mitre_tactics: List[str] = field(default_factory=list)
     mitre_techniques: List[str] = field(default_factory=list)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert event to dictionary."""
         return {
@@ -198,6 +201,7 @@ class ThreatEvent:
 @dataclass
 class DefenseAction:
     """Represents a defensive action taken."""
+
     action_type: str
     tool: str
     command: str
@@ -211,6 +215,7 @@ class DefenseAction:
 @dataclass
 class LogAnalysisResult:
     """Result of log analysis."""
+
     log_source: str
     entries_analyzed: int
     threats_found: List[ThreatEvent]
@@ -221,80 +226,103 @@ class LogAnalysisResult:
 
 class DefenseToolRunner:
     """Executes defensive security tools safely.
-    
+
     Provides a safe interface for running defensive tools with:
     - Command validation
     - Timeout enforcement
     - Output capture
     - Error handling
     """
-    
+
     # Allowed defensive tools
     ALLOWED_TOOLS = {
-        "log_analyzer", "firewall_manager", "process_monitor",
-        "file_integrity", "service_manager", "netstat_analyzer",
-        "user_auditor", "patch_manager", "backup_manager",
-        "alert_system", "iptables", "ufw", "systemctl",
-        "journalctl", "netstat", "ss", "lsof", "ps", "top",
-        "htop", "auditctl", "ausearch", "rkhunter", "chkrootkit",
+        "log_analyzer",
+        "firewall_manager",
+        "process_monitor",
+        "file_integrity",
+        "service_manager",
+        "netstat_analyzer",
+        "user_auditor",
+        "patch_manager",
+        "backup_manager",
+        "alert_system",
+        "iptables",
+        "ufw",
+        "systemctl",
+        "journalctl",
+        "netstat",
+        "ss",
+        "lsof",
+        "ps",
+        "top",
+        "htop",
+        "auditctl",
+        "ausearch",
+        "rkhunter",
+        "chkrootkit",
     }
-    
+
     # Tools that modify system state (require confirmation in safe mode)
     MODIFICATION_TOOLS = {
-        "iptables", "ufw", "systemctl", "firewall_manager",
-        "service_manager", "user_auditor", "patch_manager",
+        "iptables",
+        "ufw",
+        "systemctl",
+        "firewall_manager",
+        "service_manager",
+        "user_auditor",
+        "patch_manager",
     }
-    
+
     # Path traversal patterns to block
     PATH_TRAVERSAL_PATTERNS = [
-        "../",           # Parent directory traversal
-        "..\\",          # Windows parent directory traversal
-        "/etc/passwd",   # Sensitive file access
-        "/etc/shadow",   # Sensitive file access
-        "/root/",        # Root directory access
-        "~",             # Home directory expansion
-        "$HOME",         # Environment variable expansion
-        "${HOME}",       # Environment variable expansion
-        "$USER",         # Environment variable expansion
-        "${USER}",       # Environment variable expansion
+        "../",  # Parent directory traversal
+        "..\\",  # Windows parent directory traversal
+        "/etc/passwd",  # Sensitive file access
+        "/etc/shadow",  # Sensitive file access
+        "/root/",  # Root directory access
+        "~",  # Home directory expansion
+        "$HOME",  # Environment variable expansion
+        "${HOME}",  # Environment variable expansion
+        "$USER",  # Environment variable expansion
+        "${USER}",  # Environment variable expansion
     ]
-    
+
     def __init__(self, safe_mode: bool = True, default_timeout: int = 120):
         """Initialize the defense tool runner.
-        
+
         Args:
             safe_mode: If True, requires confirmation for system modifications
             default_timeout: Default timeout in seconds
         """
         self.safe_mode = safe_mode
         self.default_timeout = default_timeout
-    
+
     def _validate_command(self, command: str, tool_name: str) -> tuple[bool, str]:
         """Validate command for safety.
-        
+
         Args:
             command: The command to validate
             tool_name: Name of the tool
-            
+
         Returns:
             Tuple of (is_valid, error_message)
         """
         if not command:
             return False, "Empty command"
-        
+
         # Validate the tool binary is in the allowed list
         try:
             args = shlex.split(command)
         except ValueError as e:
             return False, f"Invalid command syntax: {e}"
-        
+
         if not args:
             return False, "Empty command after parsing"
-        
+
         # SECURITY: Ensure the binary path doesn't contain path traversal
         binary_path = args[0]
         tool_binary = binary_path.split("/")[-1]  # basename only
-        
+
         # Block absolute paths that try to access non-standard locations
         if binary_path.startswith("/"):
             # Only allow standard system paths for known tools
@@ -303,26 +331,26 @@ class DefenseToolRunner:
                 # Check if it's a relative path disguised as absolute
                 if ".." in binary_path:
                     return False, "Path traversal detected in tool path"
-        
+
         # Block relative paths with traversal
         if ".." in binary_path or binary_path.startswith("./"):
             return False, "Relative paths with traversal are not allowed"
-        
+
         if tool_binary not in self.ALLOWED_TOOLS:
             return False, f"Tool '{tool_binary}' is not in the allowed tools list"
-        
+
         # Check for path traversal in arguments
         for arg in args[1:]:
             if ".." in arg:
                 # For defensive tools, be more restrictive
                 return False, f"Path traversal detected in argument: {arg[:50]}"
-            
+
             # Check for sensitive file access in arguments
             sensitive_patterns = ["/etc/passwd", "/etc/shadow", "/root/"]
             for pattern in sensitive_patterns:
                 if pattern in arg:
                     return False, f"Sensitive file path detected in argument: {pattern}"
-        
+
         # Check for dangerous patterns
         dangerous_patterns = [
             "rm -rf /",
@@ -338,11 +366,11 @@ class DefenseToolRunner:
             "$((",
             "))",
         ]
-        
+
         for pattern in dangerous_patterns:
             if pattern in command.lower():
                 return False, f"Dangerous pattern detected: {pattern}"
-        
+
         # Check for path traversal patterns
         for pattern in self.PATH_TRAVERSAL_PATTERNS:
             if pattern.lower() in command.lower():
@@ -350,15 +378,15 @@ class DefenseToolRunner:
                 # but flag them for review in safe mode
                 if self.safe_mode:
                     return False, f"Path traversal pattern detected: {pattern}"
-        
+
         # Check for shell metacharacters that could lead to injection
         shell_metacharacters = [";", "|", "`", "$(", "${", "&", "&&", "||", "<", ">", ">>", "<<"]
         for meta in shell_metacharacters:
             if meta in command:
                 return False, f"Shell metacharacter '{meta}' not allowed in command"
-        
+
         return True, ""
-    
+
     async def execute(
         self,
         command: str,
@@ -366,17 +394,17 @@ class DefenseToolRunner:
         timeout: Optional[int] = None,
     ) -> DefenseAction:
         """Execute a defensive command safely.
-        
+
         Args:
             command: The command to execute
             tool_name: Name of the tool for logging
             timeout: Timeout in seconds
-            
+
         Returns:
             DefenseAction with results
         """
         start_time = time.time()
-        
+
         # Validate command
         is_valid, error_msg = self._validate_command(command, tool_name)
         if not is_valid:
@@ -389,9 +417,9 @@ class DefenseToolRunner:
                 success=False,
                 output=error_msg,
             )
-        
+
         timeout = timeout or self.default_timeout
-        
+
         try:
             # Parse command into argument list to avoid shell injection
             try:
@@ -406,19 +434,16 @@ class DefenseToolRunner:
                     success=False,
                     output=f"Invalid command syntax: {e}",
                 )
-            
+
             # Run command without shell to prevent injection
             process = await asyncio.create_subprocess_exec(
                 *args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            
+
             try:
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(),
-                    timeout=timeout
-                )
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
             except asyncio.TimeoutError:
                 process.kill()
                 await process.wait()
@@ -431,17 +456,17 @@ class DefenseToolRunner:
                     success=False,
                     output=f"Command timed out after {timeout}s",
                 )
-            
+
             output = stdout.decode("utf-8", errors="replace")
             error_output = stderr.decode("utf-8", errors="replace")
-            
+
             # Combine outputs
             full_output = output
             if error_output and not output:
                 full_output = error_output
             elif error_output:
                 full_output = f"{output}\n{error_output}"
-            
+
             return DefenseAction(
                 action_type="execute",
                 tool=tool_name,
@@ -451,7 +476,7 @@ class DefenseToolRunner:
                 success=process.returncode == 0,
                 output=full_output,
             )
-            
+
         except Exception as e:
             return DefenseAction(
                 action_type="execute",
@@ -466,18 +491,18 @@ class DefenseToolRunner:
 
 class BlueAgent(BaseAgent):
     """Defensive security operations agent.
-    
+
     The Blue Agent performs defensive security operations including:
     1. Threat Detection - Monitor and identify security incidents
     2. Incident Response - Contain and neutralize threats
     3. Recovery Operations - Restore normal system function
     4. Security Hardening - Implement preventive measures
-    
+
     All actions are logged and findings are stored for learning.
     """
-    
+
     role = AgentRole.BLUE
-    
+
     def __init__(
         self,
         engine: "LLMEngine",
@@ -491,7 +516,7 @@ class BlueAgent(BaseAgent):
         monitored_system: str = "",
     ):
         """Initialize the Blue Agent.
-        
+
         Args:
             engine: LLM engine for planning and analysis
             vector_store: Vector store for RAG queries
@@ -518,12 +543,12 @@ class BlueAgent(BaseAgent):
         self._threat_events: List[ThreatEvent] = []
         self._defense_actions: List[DefenseAction] = []
         self._current_stage: DefenseStage = DefenseStage.MONITOR
-    
+
     @property
     def system_prompt(self) -> str:
         """Return the Blue Agent system prompt."""
         return BLUE_AGENT_PROMPT
-    
+
     @property
     def tool_runner(self) -> DefenseToolRunner:
         """Get or create the tool runner."""
@@ -533,41 +558,39 @@ class BlueAgent(BaseAgent):
                 default_timeout=self.tool_timeout,
             )
         return self._tool_runner
-    
+
     @property
     def current_stage(self) -> DefenseStage:
         """Get the current defense stage."""
         return self._current_stage
-    
+
     def set_stage(self, stage: DefenseStage) -> None:
         """Set the current defense stage."""
         self._current_stage = stage
         logger.info(f"Blue Agent stage changed to: {stage.value}")
-    
+
     async def plan(self, context: str) -> List[AgentAction]:
         """Plan defensive actions based on context.
-        
+
         Queries RAG for relevant defense patterns and uses the LLM
         to plan appropriate defensive actions.
-        
+
         Args:
             context: Current situation description
-            
+
         Returns:
             List of actions to execute
         """
         # Query RAG for similar defense patterns
-        rag_context = await self.query_rag(
-            f"defense patterns for {self.target} {context[:100]}"
-        )
-        
+        rag_context = await self.query_rag(f"defense patterns for {self.target} {context[:100]}")
+
         # Build planning prompt
         planning_prompt = f"""Monitored System: {self.monitored_system or self.target}
-Safe Mode: {'Enabled' if self.safe_mode else 'Disabled'}
+Safe Mode: {"Enabled" if self.safe_mode else "Disabled"}
 Current Stage: {self._current_stage.value}
 
 Context from previous defenses:
-{rag_context if rag_context else 'No relevant patterns found'}
+{rag_context if rag_context else "No relevant patterns found"}
 
 Current situation:
 {context}
@@ -587,25 +610,27 @@ Provide your plan as JSON action blocks. Explain your reasoning before each acti
         self.conversation.add_user(planning_prompt)
         response = await self.engine.chat(self.conversation)
         self.conversation.add_assistant(response)
-        
+
         # Parse actions from response
         actions = self._parse_actions(response)
-        
+
         if not actions:
             # Default to monitoring action
             self.output("No valid actions parsed, defaulting to monitoring")
-            actions = [AgentAction(
-                action_type="execute",
-                tool="log_analyzer",
-                command="journalctl -p warning --no-pager -n 100",
-                explanation="Default system log monitoring",
-            )]
-        
+            actions = [
+                AgentAction(
+                    action_type="execute",
+                    tool="log_analyzer",
+                    command="journalctl -p warning --no-pager -n 100",
+                    explanation="Default system log monitoring",
+                )
+            ]
+
         return actions
-    
+
     async def execute_action(self, action: AgentAction) -> str:
         """Execute a defensive action.
-        
+
         Handles different action types:
         - execute: Run a defensive tool
         - detection: Record a threat detection
@@ -613,16 +638,16 @@ Provide your plan as JSON action blocks. Explain your reasoning before each acti
         - query_rag: Query vector store
         - complete: End defense session
         - wait: Pause for duration
-        
+
         Args:
             action: The action to execute
-            
+
         Returns:
             Result string from the action
         """
         self._step_counter += 1
         start_time = time.time()
-        
+
         try:
             if action.action_type == "execute":
                 result = await self._execute_tool(action)
@@ -633,7 +658,7 @@ Provide your plan as JSON action blocks. Explain your reasoning before each acti
             elif action.action_type == "query_rag":
                 result = await self._query_rag_action(action)
             elif action.action_type == "complete":
-                self.state = AgentState.COMPLETED
+                self.state = AgentStateEnum.COMPLETED
                 result = f"Defense session completed: {action.explanation}"
             elif action.action_type == "wait":
                 duration = action.parameters.get("seconds", 5)
@@ -642,16 +667,16 @@ Provide your plan as JSON action blocks. Explain your reasoning before each acti
             else:
                 result = f"Unknown action type: {action.action_type}"
                 logger.warning(result)
-            
+
             success = True
             error = None
-            
+
         except Exception as e:
             result = f"Action failed: {str(e)}"
             success = False
             error = str(e)
             logger.error(f"Action execution error: {e}")
-        
+
         # Record step
         step = AgentStep(
             step_num=self._step_counter,
@@ -662,41 +687,41 @@ Provide your plan as JSON action blocks. Explain your reasoning before each acti
             duration_ms=(time.time() - start_time) * 1000,
         )
         self.add_step(step)
-        
+
         return result
-    
+
     async def _execute_tool(self, action: AgentAction) -> str:
         """Execute a defensive tool.
-        
+
         Args:
             action: Action containing tool and command
-            
+
         Returns:
             Tool output or error message
         """
         tool_name = action.tool or "unknown"
         command = action.command or ""
-        
+
         self.output(f"Executing defense tool: {tool_name}")
         if action.explanation:
             self.output(f"Reason: {action.explanation}")
-        
+
         # Execute tool
         result = await self.tool_runner.execute(
             command=command,
             tool_name=tool_name,
             timeout=self.tool_timeout,
         )
-        
+
         # Store defense action
         self._defense_actions.append(result)
-        
+
         # Report result
         if result.success:
             self.output(f"Tool completed successfully")
         else:
             self.output(f"Tool failed: {result.output}")
-        
+
         # Store result for learning
         await self.store_interaction(
             content=f"Defense Tool: {tool_name}\nCommand: {command}\nResult: {result.output[:1000]}",
@@ -706,22 +731,22 @@ Provide your plan as JSON action blocks. Explain your reasoning before each acti
                 "target": self.target,
                 "success": result.success,
                 "type": "defense_action",
-            }
+            },
         )
-        
+
         return result.output if result.output else "No output"
-    
+
     async def _record_detection(self, action: AgentAction) -> str:
         """Record a threat detection.
-        
+
         Args:
             action: Action containing detection details
-            
+
         Returns:
             Confirmation message
         """
         params = action.parameters
-        
+
         # Create threat event
         threat = ThreatEvent(
             event_type=params.get("event_type", params.get("title", "Unknown")),
@@ -734,9 +759,9 @@ Provide your plan as JSON action blocks. Explain your reasoning before each acti
             mitre_tactics=params.get("mitre_tactics", []),
             mitre_techniques=params.get("mitre_techniques", []),
         )
-        
+
         self._threat_events.append(threat)
-        
+
         # Create finding
         finding = Finding(
             title=params.get("title", "Unknown Detection"),
@@ -746,10 +771,10 @@ Provide your plan as JSON action blocks. Explain your reasoning before each acti
             recommendation=params.get("response", ""),
             tool=action.tool or "detection",
         )
-        
+
         self.add_finding(finding)
         self.output(f"Detection recorded: [{finding.severity}] {finding.title}")
-        
+
         # Store in RAG for future reference
         await self.store_interaction(
             content=f"Detection: {finding.title}\nSeverity: {finding.severity}\nTarget: {self.target}\n{finding.description}\nEvidence: {finding.evidence}\nResponse: {finding.recommendation}",
@@ -759,22 +784,22 @@ Provide your plan as JSON action blocks. Explain your reasoning before each acti
                 "target": self.target,
                 "tool": finding.tool,
                 "event_type": threat.event_type,
-            }
+            },
         )
-        
+
         return f"Recorded detection: {finding.title}"
-    
+
     async def _record_hardening(self, action: AgentAction) -> str:
         """Record a security hardening recommendation.
-        
+
         Args:
             action: Action containing hardening details
-            
+
         Returns:
             Confirmation message
         """
         params = action.parameters
-        
+
         finding = Finding(
             title=params.get("title", "Security Hardening Recommendation"),
             severity=params.get("severity", "Info"),
@@ -783,58 +808,58 @@ Provide your plan as JSON action blocks. Explain your reasoning before each acti
             recommendation=params.get("recommendation", ""),
             tool=action.tool or "hardening",
         )
-        
+
         self.add_finding(finding)
         self.output(f"Hardening recommendation: {finding.title}")
-        
+
         # Store in RAG
         await self.store_interaction(
             content=f"Hardening: {finding.title}\n{finding.description}\nRecommendation: {finding.recommendation}",
             metadata={
                 "type": "hardening",
                 "target": self.target,
-            }
+            },
         )
-        
+
         return f"Recorded hardening recommendation: {finding.title}"
-    
+
     async def _query_rag_action(self, action: AgentAction) -> str:
         """Execute RAG query action.
-        
+
         Args:
             action: Action containing query parameters
-            
+
         Returns:
             Query results
         """
         query = action.parameters.get("query", "")
         if not query:
             return "No query provided"
-        
+
         result = await self.query_rag(query)
-        
+
         if result:
             self.output("RAG returned relevant defense context")
             return f"RAG Context:\n{result}"
         else:
             return "No relevant defense patterns found in knowledge base"
-    
+
     async def monitor(self, log_data: str, log_source: str = "system") -> LogAnalysisResult:
         """Analyze logs and detect threats.
-        
+
         This is the primary monitoring method for the Blue Agent.
         It analyzes log data for security threats and anomalies.
-        
+
         Args:
             log_data: Raw log data to analyze
             log_source: Source of the logs (system, auth, application, etc.)
-            
+
         Returns:
             LogAnalysisResult with findings
         """
         self.set_stage(DefenseStage.MONITOR)
         self.output(f"Analyzing logs from {log_source} ({len(log_data)} bytes)")
-        
+
         # Build analysis prompt
         analysis_prompt = f"""Analyze the following {log_source} logs for security threats:
 
@@ -865,19 +890,19 @@ Format detections as JSON action blocks with action type "detection"."""
         self.conversation.add_user(analysis_prompt)
         response = await self.engine.chat(self.conversation)
         self.conversation.add_assistant(response)
-        
+
         # Parse actions from response
         actions = self._parse_actions(response)
-        
+
         # Process detections
         threats = []
         anomalies = []
         recommendations = []
-        
+
         for action in actions:
             if action.action_type == "detection":
                 params = action.parameters
-                
+
                 threat = ThreatEvent(
                     event_type=params.get("event_type", params.get("title", "Unknown")),
                     source=log_source,
@@ -889,7 +914,7 @@ Format detections as JSON action blocks with action type "detection"."""
                 )
                 threats.append(threat)
                 self._threat_events.append(threat)
-                
+
                 # Also create a finding
                 finding = Finding(
                     title=params.get("title", "Log Detection"),
@@ -900,41 +925,41 @@ Format detections as JSON action blocks with action type "detection"."""
                     tool="log_analyzer",
                 )
                 self.add_finding(finding)
-                
+
             elif action.action_type == "execute":
                 # Defense recommendations
                 recommendations.append(action.explanation or action.command or "")
-        
+
         result = LogAnalysisResult(
             log_source=log_source,
-            entries_analyzed=len(log_data.split('\n')),
+            entries_analyzed=len(log_data.split("\n")),
             threats_found=threats,
             anomalies=anomalies,
             recommendations=recommendations,
         )
-        
+
         self.output(f"Log analysis complete: {len(threats)} threats, {len(anomalies)} anomalies")
-        
+
         return result
-    
+
     async def respond_to_event(self, event: Dict[str, Any]) -> str:
         """Respond to an event from the Red Agent or external source.
-        
+
         This is the primary response method for the Blue Agent.
         It receives events and determines appropriate defensive actions.
-        
+
         Args:
             event: Event dictionary with type, data, and metadata
-            
+
         Returns:
             Combined results from response actions
         """
         event_type = event.get("type", "unknown")
         event_data = event.get("data", {})
         event_severity = event.get("severity", "medium")
-        
+
         self.output(f"Received event: {event_type} (severity: {event_severity})")
-        
+
         # Set appropriate stage based on event type
         if event_severity in ("critical", "high"):
             self.set_stage(DefenseStage.RESPOND)
@@ -942,13 +967,13 @@ Format detections as JSON action blocks with action type "detection"."""
             self.set_stage(DefenseStage.ANALYZE)
         else:
             self.set_stage(DefenseStage.MONITOR)
-        
+
         # Build event context
         event_context = f"""Security Event Received:
 Type: {event_type}
 Severity: {event_severity}
-Source: {event.get('source', 'unknown')}
-Timestamp: {event.get('timestamp', datetime.utcnow().isoformat())}
+Source: {event.get("source", "unknown")}
+Timestamp: {event.get("timestamp", datetime.utcnow().isoformat())}
 
 Event Data:
 {str(event_data)[:2000]}
@@ -964,38 +989,38 @@ Provide your response plan as JSON action blocks."""
 
         # Get actions from planning
         actions = await self.plan(event_context)
-        
+
         # Execute each action
         results = []
         for action in actions:
-            if self.state == AgentState.COMPLETED:
+            if self.state == AgentStateEnum.COMPLETED:
                 break
-            if self.state == AgentState.PAUSED:
+            if self.state == AgentStateEnum.PAUSED:
                 results.append("Agent paused during response")
                 break
-            
+
             result = await self.execute_action(action)
             results.append(result)
-            
+
             # Add result to conversation for context
             self.conversation.add_user(f"[RESULT]\n{result[:2000]}")
-        
+
         return "\n\n".join(results)
-    
+
     async def respond_to_red_finding(self, red_finding: Finding) -> str:
         """Respond specifically to a finding from the Red Agent.
-        
+
         This allows the Blue Agent to react to vulnerabilities or
         attack findings discovered by the Red Agent.
-        
+
         Args:
             red_finding: Finding from the Red Agent
-            
+
         Returns:
             Response summary
         """
         self.output(f"Responding to Red Agent finding: {red_finding.title}")
-        
+
         event = {
             "type": "red_agent_finding",
             "source": "red_agent",
@@ -1007,34 +1032,34 @@ Provide your response plan as JSON action blocks."""
                 "recommendation": red_finding.recommendation,
                 "tool": red_finding.tool,
                 "cve": red_finding.cve,
-            }
+            },
         }
-        
+
         return await self.respond_to_event(event)
-    
+
     async def harden_system(self, system: str = "") -> List[Finding]:
         """Analyze system and provide hardening recommendations.
-        
+
         Args:
             system: System to harden (defaults to monitored system)
-            
+
         Returns:
             List of hardening findings
         """
         target_system = system or self.monitored_system or self.target
         self.set_stage(DefenseStage.HARDEN)
         self.output(f"Analyzing {target_system} for hardening opportunities")
-        
+
         # Query RAG for hardening patterns
         rag_context = await self.query_rag(f"hardening recommendations for {target_system}")
-        
+
         # Build hardening prompt
         hardening_prompt = f"""Analyze the system for security hardening opportunities.
 
 System: {target_system}
 
 Known patterns:
-{rag_context if rag_context else 'No specific patterns found'}
+{rag_context if rag_context else "No specific patterns found"}
 
 Provide comprehensive hardening recommendations for:
 1. Network security (firewall rules, open ports)
@@ -1052,102 +1077,108 @@ Format each recommendation as a JSON action block with action type "hardening"."
         self.conversation.add_user(hardening_prompt)
         response = await self.engine.chat(self.conversation)
         self.conversation.add_assistant(response)
-        
+
         # Parse and record hardening actions
         actions = self._parse_actions(response)
         findings = []
-        
+
         for action in actions:
             if action.action_type == "hardening":
                 result = await self._record_hardening(action)
                 findings.append(self.findings[-1])  # Get the last added finding
-        
+
         self.output(f"Generated {len(findings)} hardening recommendations")
         return findings
-    
+
     async def run_defense_cycle(self, initial_context: str = "") -> Dict[str, Any]:
         """Run a complete defense cycle.
-        
+
         Cycles through monitor -> detect -> respond -> recover -> harden.
-        
+
         Args:
             initial_context: Starting context for the cycle
-            
+
         Returns:
             Defense cycle summary
         """
         self.output(f"Starting defense cycle for {self.target}")
-        
+
         context = initial_context
         iteration = 0
-        
-        while self.state not in (AgentState.COMPLETED, AgentState.ERROR, AgentState.PAUSED):
+
+        while self.state not in (
+            AgentStateEnum.COMPLETED,
+            AgentStateEnum.ERROR,
+            AgentStateEnum.PAUSED,
+        ):
             iteration += 1
-            
+
             if self._step_counter >= self.max_steps:
                 self.output(f"Maximum steps reached ({self.max_steps})")
-                self.state = AgentState.COMPLETED
+                self.state = AgentStateEnum.COMPLETED
                 break
-            
+
             self.output(f"--- Defense Cycle {iteration} ---")
-            
+
             # Run one step
             result = await self.run_step(context)
-            
+
             # Use result as context for next step
             context = f"Previous cycle result:\n{result[:1000]}"
-            
+
             # Small delay between cycles
             await asyncio.sleep(0.5)
-        
+
         summary = self.get_defense_summary()
-        self.output(f"Defense cycle complete: {len(self._threat_events)} threats, {len(self._defense_actions)} actions")
-        
+        self.output(
+            f"Defense cycle complete: {len(self._threat_events)} threats, {len(self._defense_actions)} actions"
+        )
+
         return summary
-    
+
     async def run_step(self, context: str = "") -> str:
         """Execute a single step of the defense cycle.
-        
+
         Args:
             context: Current context/situation
-            
+
         Returns:
             Combined results from all executed actions
         """
         # Check step limit
         if self._step_counter >= self.max_steps:
-            self.state = AgentState.COMPLETED
+            self.state = AgentStateEnum.COMPLETED
             return f"Maximum steps ({self.max_steps}) reached"
-        
+
         # Check state
-        if self.state == AgentState.PAUSED:
+        if self.state == AgentStateEnum.PAUSED:
             return "Agent is paused"
-        
-        self.state = AgentState.RUNNING
-        
+
+        self.state = AgentStateEnum.RUNNING
+
         # Plan actions
         actions = await self.plan(context)
-        
+
         # Execute each action
         results = []
         for action in actions:
-            if self.state == AgentState.COMPLETED:
+            if self.state == AgentStateEnum.COMPLETED:
                 break
-            if self.state == AgentState.PAUSED:
+            if self.state == AgentStateEnum.PAUSED:
                 results.append("Agent paused during execution")
                 break
-            
+
             result = await self.execute_action(action)
             results.append(result)
-            
+
             # Add result to conversation for context
             self.conversation.add_user(f"[RESULT]\n{result[:2000]}")
-        
+
         return "\n\n".join(results)
-    
+
     def get_defense_summary(self) -> Dict[str, Any]:
         """Get summary of defense operations.
-        
+
         Returns:
             Dictionary with defense session summary
         """
@@ -1155,9 +1186,9 @@ Format each recommendation as a JSON action block with action type "hardening"."
         for threat in self._threat_events:
             sev = threat.severity.value
             severity_counts[sev] = severity_counts.get(sev, 0) + 1
-        
+
         successful_actions = sum(1 for a in self._defense_actions if a.success)
-        
+
         return {
             "role": self.role.value,
             "state": self.state.value,
@@ -1173,37 +1204,37 @@ Format each recommendation as a JSON action block with action type "hardening"."
             "threats": [t.to_dict() for t in self._threat_events],
             "findings": [f.to_dict() for f in self.findings],
         }
-    
+
     def get_threat_events(self) -> List[ThreatEvent]:
         """Get all recorded threat events."""
         return self._threat_events.copy()
-    
+
     def get_defense_actions(self) -> List[DefenseAction]:
         """Get all defense actions taken."""
         return self._defense_actions.copy()
 
 
 def create_blue_agent(
-    engine: Optional["LLMEngine"] = None,
-    vector_store: Optional["VectorStore"] = None,
-    **kwargs
+    engine: Optional["LLMEngine"] = None, vector_store: Optional["VectorStore"] = None, **kwargs
 ) -> BlueAgent:
     """Create a Blue Agent instance.
-    
+
     Args:
         engine: LLM engine (created if not provided)
         vector_store: Vector store (created if not provided)
         **kwargs: Additional arguments for BlueAgent
-        
+
     Returns:
         Configured BlueAgent instance
     """
     if engine is None:
         from purple_team_gpt.core.llm.engine import create_engine
+
         engine = create_engine()
-    
+
     if vector_store is None:
         from purple_team_gpt.core.rag.vector_store import create_vector_store
+
         vector_store = create_vector_store()
-    
+
     return BlueAgent(engine=engine, vector_store=vector_store, **kwargs)
