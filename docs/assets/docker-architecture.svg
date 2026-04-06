@@ -1,0 +1,346 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="orchestratorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="redAgentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f5576c;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f093fb;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="blueAgentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4facfe;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00f2fe;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="chromaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fa709a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#fee140;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="redisGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff6a00;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ee0979;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="targetGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#434343;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#000000;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="hostGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e8e8e8;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#c0c0c0;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Shadow filter -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="3" dy="3" stdDeviation="4" flood-opacity="0.3"/>
+    </filter>
+    
+    <!-- Glow filter -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Arrow marker -->
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#555"/>
+    </marker>
+    <marker id="arrowheadRed" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#f5576c"/>
+    </marker>
+    <marker id="arrowheadBlue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#4facfe"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="900" fill="#f8fafc"/>
+  
+  <!-- Title -->
+  <text x="600" y="35" text-anchor="middle" font-size="24" font-weight="bold" fill="#1e293b">
+    Purple Team GPT - Docker Experimentation Architecture
+  </text>
+  <text x="600" y="55" text-anchor="middle" font-size="12" fill="#64748b">
+    Multi-container cybersecurity simulation environment
+  </text>
+
+  <!-- Docker Host Box -->
+  <rect x="30" y="70" width="1140" height="800" rx="15" fill="url(#hostGrad)" stroke="#94a3b8" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="95" text-anchor="middle" font-size="14" font-weight="bold" fill="#475569">🐳 Docker Host</text>
+  
+  <!-- Management Network -->
+  <rect x="50" y="110" width="700" height="400" rx="10" fill="#e0e7ff" fill-opacity="0.4" stroke="#6366f1" stroke-width="1" stroke-dasharray="5,3"/>
+  <text x="400" y="130" text-anchor="middle" font-size="11" font-weight="bold" fill="#4f46e5">📡 Management Network (10.0.0.0/24)</text>
+
+  <!-- Attack Network -->
+  <rect x="780" y="350" width="370" height="250" rx="10" fill="#fee2e2" fill-opacity="0.4" stroke="#ef4444" stroke-width="1" stroke-dasharray="5,3"/>
+  <text x="965" y="370" text-anchor="middle" font-size="11" font-weight="bold" fill="#dc2626">🎯 Attack Network (192.168.100.0/24)</text>
+
+  <!-- Defense Network -->
+  <rect x="780" y="110" width="370" height="200" rx="10" fill="#dbeafe" fill-opacity="0.4" stroke="#3b82f6" stroke-width="1" stroke-dasharray="5,3"/>
+  <text x="965" y="130" text-anchor="middle" font-size="11" font-weight="bold" fill="#2563eb">🛡️ Defense Network (172.16.0.0/24)</text>
+
+  <!-- ==================== ORCHESTRATOR ==================== -->
+  <g transform="translate(70, 150)">
+    <rect width="200" height="280" rx="12" fill="url(#orchestratorGrad)" filter="url(#shadow)"/>
+    <rect x="5" y="5" width="190" height="40" rx="8" fill="rgba(255,255,255,0.2)"/>
+    <text x="100" y="30" text-anchor="middle" font-size="14" font-weight="bold" fill="white">🎯 ORCHESTRATOR</text>
+    
+    <text x="100" y="65" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.9)">Ubuntu | Port: 8000</text>
+    <text x="100" y="78" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.7)">IP: 10.0.0.10</text>
+    
+    <rect x="10" y="90" width="180" height="180" rx="8" fill="rgba(255,255,255,0.15)"/>
+    <text x="100" y="108" text-anchor="middle" font-size="10" font-weight="bold" fill="white">Core Services</text>
+    
+    <text x="20" y="128" font-size="9" fill="white">• FastAPI REST API</text>
+    <text x="20" y="143" font-size="9" fill="white">• WebSocket Events</text>
+    <text x="20" y="158" font-size="9" fill="white">• LLM Router</text>
+    <text x="20" y="173" font-size="9" fill="white">• Agent Coordinator</text>
+    <text x="20" y="188" font-size="9" fill="white">• Feedback Engine</text>
+    <text x="20" y="203" font-size="9" fill="white">• Simulation Manager</text>
+    
+    <text x="100" y="225" text-anchor="middle" font-size="10" font-weight="bold" fill="white">LLM Support</text>
+    <text x="20" y="242" font-size="8" fill="rgba(255,255,255,0.9)">OpenAI | Anthropic | Local</text>
+    <text x="20" y="258" font-size="8" fill="rgba(255,255,255,0.9)">Failover | Load Balancing</text>
+  </g>
+
+  <!-- ==================== RED AGENT ==================== -->
+  <g transform="translate(320, 150)">
+    <rect width="200" height="340" rx="12" fill="url(#redAgentGrad)" filter="url(#shadow)"/>
+    <rect x="5" y="5" width="190" height="40" rx="8" fill="rgba(255,255,255,0.2)"/>
+    <text x="100" y="30" text-anchor="middle" font-size="14" font-weight="bold" fill="white">🔴 RED AGENT</text>
+    
+    <text x="100" y="65" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.9)">Kali Linux | Port: 8001</text>
+    <text x="100" y="78" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.7)">IP: 10.0.0.20 / 192.168.100.20</text>
+    
+    <rect x="10" y="90" width="180" height="240" rx="8" fill="rgba(255,255,255,0.15)"/>
+    <text x="100" y="108" text-anchor="middle" font-size="10" font-weight="bold" fill="white">Offensive Tools (50+)</text>
+    
+    <text x="20" y="128" font-size="9" fill="white" font-weight="bold">📡 Scanning:</text>
+    <text x="25" y="141" font-size="8" fill="rgba(255,255,255,0.9)">nmap, masscan, rustscan</text>
+    
+    <text x="20" y="156" font-size="9" fill="white" font-weight="bold">🌐 Web:</text>
+    <text x="25" y="169" font-size="8" fill="rgba(255,255,255,0.9)">nikto, nuclei, gobuster, ffuf</text>
+    
+    <text x="20" y="184" font-size="9" fill="white" font-weight="bold">💉 Exploitation:</text>
+    <text x="25" y="197" font-size="8" fill="rgba(255,255,255,0.9)">metasploit, sqlmap</text>
+    
+    <text x="20" y="212" font-size="9" fill="white" font-weight="bold">🔑 Password:</text>
+    <text x="25" y="225" font-size="8" fill="rgba(255,255,255,0.9)">hydra, john, hashcat</text>
+    
+    <text x="20" y="240" font-size="9" fill="white" font-weight="bold">🏢 Active Directory:</text>
+    <text x="25" y="253" font-size="8" fill="rgba(255,255,255,0.9)">crackmapexec, bloodhound</text>
+    
+    <text x="20" y="268" font-size="9" fill="white" font-weight="bold">📡 Wireless:</text>
+    <text x="25" y="281" font-size="8" fill="rgba(255,255,255,0.9)">aircrack-ng, wifite</text>
+    
+    <text x="20" y="296" font-size="9" fill="white" font-weight="bold">🎯 Post-Exploit:</text>
+    <text x="25" y="309" font-size="8" fill="rgba(255,255,255,0.9)">empire, sliver, impacket</text>
+    
+    <rect x="10" y="315" width="180" height="18" rx="4" fill="rgba(0,0,0,0.2)"/>
+    <text x="100" y="328" text-anchor="middle" font-size="8" fill="white">⚠️ Privileged Mode Required</text>
+  </g>
+
+  <!-- ==================== BLUE AGENT ==================== -->
+  <g transform="translate(550, 150)">
+    <rect width="200" height="340" rx="12" fill="url(#blueAgentGrad)" filter="url(#shadow)"/>
+    <rect x="5" y="5" width="190" height="40" rx="8" fill="rgba(255,255,255,0.2)"/>
+    <text x="100" y="30" text-anchor="middle" font-size="14" font-weight="bold" fill="white">🔵 BLUE AGENT</text>
+    
+    <text x="100" y="65" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.9)">Ubuntu Server | Port: 8002</text>
+    <text x="100" y="78" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.7)">IP: 10.0.0.30 / 172.16.0.30</text>
+    
+    <rect x="10" y="90" width="180" height="240" rx="8" fill="rgba(255,255,255,0.15)"/>
+    <text x="100" y="108" text-anchor="middle" font-size="10" font-weight="bold" fill="white">Defensive Tools (50+)</text>
+    
+    <text x="20" y="128" font-size="9" fill="white" font-weight="bold">🔥 Firewall:</text>
+    <text x="25" y="141" font-size="8" fill="rgba(255,255,255,0.9)">iptables, ufw, nftables</text>
+    
+    <text x="20" y="156" font-size="9" fill="white" font-weight="bold">🔍 IDS/IPS:</text>
+    <text x="25" y="169" font-size="8" fill="rgba(255,255,255,0.9)">suricata, zeek, snort</text>
+    
+    <text x="20" y="184" font-size="9" fill="white" font-weight="bold">🛡️ HIDS:</text>
+    <text x="25" y="197" font-size="8" fill="rgba(255,255,255,0.9)">aide, rkhunter, wazuh</text>
+    
+    <text x="20" y="212" font-size="9" fill="white" font-weight="bold">🦠 Malware:</text>
+    <text x="25" y="225" font-size="8" fill="rgba(255,255,255,0.9)">clamav, chkrootkit</text>
+    
+    <text x="20" y="240" font-size="9" fill="white" font-weight="bold">📊 Monitoring:</text>
+    <text x="25" y="253" font-size="8" fill="rgba(255,255,255,0.9)">tcpdump, tshark, htop</text>
+    
+    <text x="20" y="268" font-size="9" fill="white" font-weight="bold">🔬 Forensics:</text>
+    <text x="25" y="281" font-size="8" fill="rgba(255,255,255,0.9)">volatility, sleuthkit</text>
+    
+    <text x="20" y="296" font-size="9" fill="white" font-weight="bold">📋 Audit:</text>
+    <text x="25" y="309" font-size="8" fill="rgba(255,255,255,0.9)">auditd, lynis, osquery</text>
+    
+    <rect x="10" y="315" width="180" height="18" rx="4" fill="rgba(0,0,0,0.2)"/>
+    <text x="100" y="328" text-anchor="middle" font-size="8" fill="white">⚠️ Privileged Mode Required</text>
+  </g>
+
+  <!-- ==================== CHROMADB ==================== -->
+  <g transform="translate(70, 470)">
+    <rect width="150" height="130" rx="10" fill="url(#chromaGrad)" filter="url(#shadow)"/>
+    <text x="75" y="25" text-anchor="middle" font-size="12" font-weight="bold" fill="white">🗄️ CHROMADB</text>
+    <text x="75" y="45" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.9)">Vector Database</text>
+    <text x="75" y="60" text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.7)">Port: 8003 | IP: 10.0.0.40</text>
+    
+    <rect x="10" y="70" width="130" height="50" rx="5" fill="rgba(255,255,255,0.2)"/>
+    <text x="75" y="85" text-anchor="middle" font-size="8" fill="white">📊 Memory Storage</text>
+    <text x="75" y="98" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.8)">• Attack patterns</text>
+    <text x="75" y="110" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.8)">• Defense tactics</text>
+  </g>
+
+  <!-- ==================== REDIS ==================== -->
+  <g transform="translate(250, 470)">
+    <rect width="150" height="130" rx="10" fill="url(#redisGrad)" filter="url(#shadow)"/>
+    <text x="75" y="25" text-anchor="middle" font-size="12" font-weight="bold" fill="white">⚡ REDIS</text>
+    <text x="75" y="45" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.9)">Message Queue</text>
+    <text x="75" y="60" text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.7)">Port: 6379 | IP: 10.0.0.50</text>
+    
+    <rect x="10" y="70" width="130" height="50" rx="5" fill="rgba(255,255,255,0.2)"/>
+    <text x="75" y="85" text-anchor="middle" font-size="8" fill="white">🔄 Coordination</text>
+    <text x="75" y="98" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.8)">• Task queue</text>
+    <text x="75" y="110" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.8)">• Event streaming</text>
+  </g>
+
+  <!-- ==================== TARGET DVWA ==================== -->
+  <g transform="translate(850, 400)">
+    <rect width="160" height="100" rx="10" fill="url(#targetGrad)" filter="url(#shadow)"/>
+    <text x="80" y="25" text-anchor="middle" font-size="11" font-weight="bold" fill="white">🎯 DVWA</text>
+    <text x="80" y="42" text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.9)">Vulnerable Web App</text>
+    <text x="80" y="55" text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.7)">Port: 80</text>
+    <text x="80" y="70" text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.7)">IP: 192.168.100.100</text>
+    
+    <rect x="10" y="78" width="140" height="16" rx="3" fill="#dc2626"/>
+    <text x="80" y="90" text-anchor="middle" font-size="7" fill="white">⚠️ Intentionally Vulnerable</text>
+  </g>
+
+  <!-- ==================== TARGET METASPLOITABLE ==================== -->
+  <g transform="translate(850, 520)">
+    <rect width="160" height="80" rx="10" fill="url(#targetGrad)" filter="url(#shadow)"/>
+    <text x="80" y="22" text-anchor="middle" font-size="11" font-weight="bold" fill="white">💀 Metasploitable</text>
+    <text x="80" y="38" text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.9)">Vulnerable VM</text>
+    <text x="80" y="52" text-anchor="middle" font-size="8" fill="rgba(255,255,255,0.7)">IP: 192.168.100.101</text>
+    <rect x="10" y="58" width="140" height="16" rx="3" fill="#dc2626"/>
+    <text x="80" y="70" text-anchor="middle" font-size="7" fill="white">⚠️ Training Target</text>
+  </g>
+
+  <!-- ==================== MONITORED HOSTS ==================== -->
+  <g transform="translate(850, 160)">
+    <rect width="160" height="100" rx="10" fill="#dbeafe" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
+    <text x="80" y="22" text-anchor="middle" font-size="11" font-weight="bold" fill="#1e40af">🖥️ Production Hosts</text>
+    <text x="80" y="40" text-anchor="middle" font-size="8" fill="#1e40af">Monitored Systems</text>
+    <text x="80" y="55" text-anchor="middle" font-size="7" fill="#3b82f6">172.16.0.x</text>
+    
+    <rect x="10" y="62" width="140" height="30" rx="4" fill="#bfdbfe"/>
+    <text x="80" y="78" text-anchor="middle" font-size="7" fill="#1e40af">📁 /var/log mounted</text>
+    <text x="80" y="88" text-anchor="middle" font-size="7" fill="#1e40af">📁 /etc mounted</text>
+  </g>
+
+  <!-- ==================== CONNECTIONS ==================== -->
+  
+  <!-- Orchestrator to Red Agent -->
+  <line x1="270" y1="290" x2="320" y2="290" stroke="#f5576c" stroke-width="3" marker-end="url(#arrowheadRed)"/>
+  <line x1="320" y1="310" x2="270" y2="310" stroke="#667eea" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#arrowhead)"/>
+  
+  <!-- Orchestrator to Blue Agent -->
+  <line x1="270" y1="320" x2="550" y2="320" stroke="#4facfe" stroke-width="3" marker-end="url(#arrowheadBlue)"/>
+  <line x1="550" y1="340" x2="270" y2="340" stroke="#667eea" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#arrowhead)"/>
+  
+  <!-- Red Agent to Blue Agent (via orchestrator) -->
+  <path d="M 520 400 Q 420 430 520 460" stroke="#94a3b8" stroke-width="2" fill="none" stroke-dasharray="4,4"/>
+  <text x="420" y="445" text-anchor="middle" font-size="8" fill="#64748b">Learning Loop</text>
+  
+  <!-- Red Agent to Attack Network -->
+  <line x1="520" y1="350" x2="780" y2="400" stroke="#f5576c" stroke-width="3" marker-end="url(#arrowheadRed)"/>
+  <text x="650" y="365" font-size="8" fill="#f5576c">Attack Traffic</text>
+  
+  <!-- Blue Agent to Defense Network -->
+  <line x1="750" y1="260" x2="850" y2="210" stroke="#4facfe" stroke-width="3" marker-end="url(#arrowheadBlue)"/>
+  <text x="810" y="240" font-size="8" fill="#4facfe">Monitor</text>
+  
+  <!-- Orchestrator to ChromaDB -->
+  <line x1="170" y1="430" x2="145" y2="470" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Orchestrator to Redis -->
+  <line x1="200" y1="430" x2="280" y2="470" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- ==================== DATA FLOW LEGEND ==================== -->
+  <g transform="translate(450, 620)">
+    <rect width="300" height="120" rx="8" fill="white" stroke="#e2e8f0" stroke-width="1" filter="url(#shadow)"/>
+    <text x="150" y="20" text-anchor="middle" font-size="11" font-weight="bold" fill="#334155">Connection Legend</text>
+    
+    <line x1="20" y1="40" x2="60" y2="40" stroke="#f5576c" stroke-width="3"/>
+    <text x="70" y="44" font-size="9" fill="#334155">Attack commands from Red Agent</text>
+    
+    <line x1="20" y1="60" x2="60" y2="60" stroke="#4facfe" stroke-width="3"/>
+    <text x="70" y="64" font-size="9" fill="#334155">Defense commands from Blue Agent</text>
+    
+    <line x1="20" y1="80" x2="60" y2="80" stroke="#667eea" stroke-width="2" stroke-dasharray="5,3"/>
+    <text x="70" y="84" font-size="9" fill="#334155">Coordination (Orchestrator ↔ Agents)</text>
+    
+    <line x1="20" y1="100" x2="60" y2="100" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,4"/>
+    <text x="70" y="104" font-size="9" fill="#334155">Learning feedback loop</text>
+  </g>
+
+  <!-- ==================== PORTS LEGEND ==================== -->
+  <g transform="translate(780, 620)">
+    <rect width="200" height="120" rx="8" fill="white" stroke="#e2e8f0" stroke-width="1" filter="url(#shadow)"/>
+    <text x="100" y="20" text-anchor="middle" font-size="11" font-weight="bold" fill="#334155">Access Points</text>
+    
+    <text x="15" y="42" font-size="9" fill="#334155">🌐 API:</text>
+    <text x="60" y="42" font-size="9" fill="#4f46e5" font-weight="bold">http://localhost:8000</text>
+    
+    <text x="15" y="58" font-size="9" fill="#334155">🔴 Red:</text>
+    <text x="60" y="58" font-size="9" fill="#f5576c" font-weight="bold">http://localhost:8001</text>
+    
+    <text x="15" y="74" font-size="9" fill="#334155">🔵 Blue:</text>
+    <text x="60" y="74" font-size="9" fill="#4facfe" font-weight="bold">http://localhost:8002</text>
+    
+    <text x="15" y="90" font-size="9" fill="#334155">🗄️ Chroma:</text>
+    <text x="60" y="90" font-size="9" fill="#7c3aed" font-weight="bold">http://localhost:8003</text>
+    
+    <text x="15" y="106" font-size="9" fill="#334155">📊 Metrics:</text>
+    <text x="60" y="106" font-size="9" fill="#ea580c" font-weight="bold">http://localhost:9090</text>
+  </g>
+
+  <!-- ==================== QUICK START BOX ==================== -->
+  <g transform="translate(50, 620)">
+    <rect width="380" height="120" rx="8" fill="#f0fdf4" stroke="#22c55e" stroke-width="1" filter="url(#shadow)"/>
+    <text x="190" y="20" text-anchor="middle" font-size="11" font-weight="bold" fill="#166534">🚀 Quick Start Commands</text>
+    
+    <text x="15" y="42" font-size="9" fill="#166534" font-family="monospace">1. ./docker-start.sh build</text>
+    <text x="200" y="42" font-size="8" fill="#4ade80"># Build all images</text>
+    
+    <text x="15" y="58" font-size="9" fill="#166534" font-family="monospace">2. ./docker-start.sh up</text>
+    <text x="200" y="58" font-size="8" fill="#4ade80"># Start all services</text>
+    
+    <text x="15" y="74" font-size="9" fill="#166534" font-family="monospace">3. ./docker-start.sh status</text>
+    <text x="200" y="74" font-size="8" fill="#4ade80"># Check health</text>
+    
+    <text x="15" y="90" font-size="9" fill="#166534" font-family="monospace">4. ./docker-start.sh shell red-agent</text>
+    <text x="200" y="90" font-size="8" fill="#4ade80"># Access Kali</text>
+    
+    <text x="15" y="106" font-size="9" fill="#166534" font-family="monospace">5. ./docker-start.sh logs</text>
+    <text x="200" y="106" font-size="8" fill="#4ade80"># View all logs</text>
+  </g>
+
+  <!-- ==================== WARNING BOX ==================== -->
+  <g transform="translate(50, 755)">
+    <rect width="700" height="45" rx="6" fill="#fef2f2" stroke="#ef4444" stroke-width="1"/>
+    <text x="350" y="20" text-anchor="middle" font-size="10" font-weight="bold" fill="#dc2626">⚠️ SECURITY WARNING</text>
+    <text x="350" y="35" text-anchor="middle" font-size="9" fill="#b91c1c">Run in isolated environments only. Only target systems you own. Safe mode enabled by default. Do not expose to the internet.</text>
+  </g>
+
+  <!-- ==================== RESOURCE REQUIREMENTS ==================== -->
+  <g transform="translate(780, 755)">
+    <rect width="380" height="45" rx="6" fill="#eff6ff" stroke="#3b82f6" stroke-width="1"/>
+    <text x="190" y="18" text-anchor="middle" font-size="10" font-weight="bold" fill="#1d4ed8">📋 Requirements</text>
+    <text x="190" y="35" text-anchor="middle" font-size="9" fill="#2563eb">Docker 20.10+ | 16GB RAM | 50GB Disk | API Keys (OpenAI/Anthropic)</text>
+  </g>
+
+</svg>

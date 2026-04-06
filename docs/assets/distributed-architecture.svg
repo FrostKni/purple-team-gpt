@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700">
+  <defs>
+    <linearGradient id="redGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#EF4444"/>
+      <stop offset="100%" style="stop-color:#DC2626"/>
+    </linearGradient>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B82F6"/>
+      <stop offset="100%" style="stop-color:#2563EB"/>
+    </linearGradient>
+    <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B5CF6"/>
+      <stop offset="100%" style="stop-color:#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#22C55E"/>
+      <stop offset="100%" style="stop-color:#16A34A"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+    <marker id="arrowHead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#94A3B8"/>
+    </marker>
+    <marker id="arrowHeadRed" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#EF4444"/>
+    </marker>
+    <marker id="arrowHeadBlue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#3B82F6"/>
+    </marker>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1000" height="700" fill="#0F172A"/>
+  
+  <!-- Grid -->
+  <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+    <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#1E293B" stroke-width="0.5"/>
+  </pattern>
+  <rect width="1000" height="700" fill="url(#grid)" opacity="0.5"/>
+  
+  <!-- Title -->
+  <text x="500" y="40" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#F8FAFC">Distributed Purple Team GPT Architecture</text>
+  
+  <!-- Orchestrator Host Box -->
+  <rect x="350" y="70" width="300" height="180" rx="12" fill="#1E293B" stroke="#475569" stroke-width="2" filter="url(#shadow)"/>
+  <text x="500" y="95" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#64748B">ORCHESTRATOR HOST</text>
+  
+  <!-- Orchestrator Service -->
+  <rect x="380" y="110" width="240" height="120" rx="8" fill="url(#purpleGrad)" filter="url(#shadow)"/>
+  <text x="500" y="140" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="white">🟣 Orchestrator</text>
+  <text x="500" y="165" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#E9D5FF">FastAPI + WebSocket</text>
+  
+  <!-- Orchestrator components -->
+  <rect x="395" y="180" width="100" height="35" rx="4" fill="#4C1D95"/>
+  <text x="445" y="202" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">Agent Registry</text>
+  
+  <rect x="505" y="180" width="100" height="35" rx="4" fill="#4C1D95"/>
+  <text x="555" y="202" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="white">Session Manager</text>
+  
+  <!-- Port label -->
+  <text x="500" y="240" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#94A3B8">Port: 8000</text>
+  
+  <!-- Red Agent Host Box -->
+  <rect x="50" y="300" width="280" height="320" rx="12" fill="#1E293B" stroke="#991B1B" stroke-width="2" filter="url(#shadow)"/>
+  <text x="190" y="325" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#F87171">RED AGENT HOST (Attacker System)</text>
+  
+  <!-- Red Agent Service -->
+  <rect x="80" y="345" width="220" height="100" rx="8" fill="url(#redGrad)" filter="url(#shadow)"/>
+  <text x="190" y="380" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="white">🔴 Red Agent</text>
+  <text x="190" y="405" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#FEE2E2">Offensive Security Service</text>
+  <text x="190" y="435" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#FEE2E2">Port: 8001</text>
+  
+  <!-- Red Tools -->
+  <rect x="80" y="460" width="220" height="140" rx="6" fill="#450A0A"/>
+  <text x="190" y="480" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#FCA5A5">Offensive Tools</text>
+  
+  <rect x="95" y="495" width="90" height="25" rx="3" fill="#7F1D1D"/>
+  <text x="140" y="512" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="white">nmap</text>
+  
+  <rect x="195" y="495" width="90" height="25" rx="3" fill="#7F1D1D"/>
+  <text x="240" y="512" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="white">nikto</text>
+  
+  <rect x="95" y="530" width="90" height="25" rx="3" fill="#7F1D1D"/>
+  <text x="140" y="547" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="white">sqlmap</text>
+  
+  <rect x="195" y="530" width="90" height="25" rx="3" fill="#7F1D1D"/>
+  <text x="240" y="547" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="white">gobuster</text>
+  
+  <rect x="95" y="565" width="90" height="25" rx="3" fill="#7F1D1D"/>
+  <text x="140" y="582" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="white">hydra</text>
+  
+  <rect x="195" y="565" width="90" height="25" rx="3" fill="#7F1D1D"/>
+  <text x="240" y="582" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="white">metasploit</text>
+  
+  <!-- Blue Agent Host Box -->
+  <rect x="670" y="300" width="280" height="320" rx="12" fill="#1E293B" stroke="#1E40AF" stroke-width="2" filter="url(#shadow)"/>
+  <text x="810" y="325" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#60A5FA">BLUE AGENT HOST (Defender System)</text>
+  
+  <!-- Blue Agent Service -->
+  <rect x="700" y="345" width="220" height="100" rx="8" fill="url(#blueGrad)" filter="url(#shadow)"/>
+  <text x="810" y="380" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="white">🔵 Blue Agent</text>
+  <text x="810" y="405" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#DBEAFE">Defensive Security Service</text>
+  <text x="810" y="435" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#DBEAFE">Port: 8002</text>
+  
+  <!-- Blue Tools -->
+  <rect x="700" y="460" width="220" height="140" rx="6" fill="#172554"/>
+  <text x="810" y="480" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#93C5FD">Defensive Tools</text>
+  
+  <rect x="715" y="495" width="90" height="25" rx="3" fill="#1E3A8A"/>
+  <text x="760" y="512" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="white">firewall</text>
+  
+  <rect x="815" y="495" width="90" height="25" rx="3" fill="#1E3A8A"/>
+  <text x="860" y="512" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="white">log_monitor</text>
+  
+  <rect x="715" y="530" width="90" height="25" rx="3" fill="#1E3A8A"/>
+  <text x="760" y="547" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="white">process_mgr</text>
+  
+  <rect x="815" y="530" width="90" height="25" rx="3" fill="#1E3A8A"/>
+  <text x="860" y="547" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="white">netstat</text>
+  
+  <rect x="715" y="565" width="90" height="25" rx="3" fill="#1E3A8A"/>
+  <text x="760" y="582" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="white">ids/ips</text>
+  
+  <rect x="815" y="565" width="90" height="25" rx="3" fill="#1E3A8A"/>
+  <text x="860" y="582" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="white">quarantine</text>
+  
+  <!-- ChromaDB -->
+  <rect x="380" y="570" width="240" height="60" rx="8" fill="#1E293B" stroke="#475569" stroke-width="1" filter="url(#shadow)"/>
+  <text x="500" y="600" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#A78BFA">Vector Store</text>
+  <text x="500" y="620" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#94A3B8">ChromaDB (Port: 8003)</text>
+  
+  <!-- Connection Lines -->
+  <!-- Orchestrator to Red Agent -->
+  <path d="M380 200 L280 200 L280 290 L230 290 L230 345" stroke="#EF4444" stroke-width="2" fill="none" marker-end="url(#arrowHeadRed)" stroke-dasharray="5,3"/>
+  
+  <!-- Orchestrator to Blue Agent -->
+  <path d="M620 200 L720 200 L720 290 L770 290 L770 345" stroke="#3B82F6" stroke-width="2" fill="none" marker-end="url(#arrowHeadBlue)" stroke-dasharray="5,3"/>
+  
+  <!-- Orchestrator to ChromaDB -->
+  <path d="M500 250 L500 570" stroke="#A78BFA" stroke-width="2" fill="none" marker-end="url(#arrowHead)"/>
+  
+  <!-- Target Network -->
+  <rect x="380" y="660" width="240" height="30" rx="6" fill="#14532D" stroke="#22C55E" stroke-width="1"/>
+  <text x="500" y="680" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="white">🎯 Target Network (Assessment Scope)</text>
+  
+  <!-- Red Agent to Target -->
+  <path d="M330 620 L350 620 L350 675 L375 675" stroke="#EF4444" stroke-width="2" fill="none" marker-end="url(#arrowHeadRed)"/>
+  <text x="350" y="610" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#F87171">Attack</text>
+  
+  <!-- Blue Agent Monitoring -->
+  <path d="M700 600 L680 600 L680 660 L625 660 L625 675" stroke="#3B82F6" stroke-width="2" fill="none" marker-end="url(#arrowHeadBlue)" stroke-dasharray="3,3"/>
+  <text x="660" y="650" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#60A5FA">Monitor</text>
+  
+  <!-- Network Labels -->
+  <rect x="50" y="270" width="100" height="20" rx="3" fill="#334155"/>
+  <text x="100" y="284" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#94A3B8">Attack Network</text>
+  
+  <rect x="850" y="270" width="100" height="20" rx="3" fill="#334155"/>
+  <text x="900" y="284" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#94A3B8">Defense Network</text>
+  
+  <!-- Legend -->
+  <rect x="50" y="70" width="150" height="100" rx="6" fill="#1E293B" stroke="#334155"/>
+  <text x="125" y="90" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#94A3B8">Communication</text>
+  
+  <line x1="70" y1="110" x2="110" y2="110" stroke="#EF4444" stroke-width="2" stroke-dasharray="5,3"/>
+  <text x="120" y="114" font-family="Arial, sans-serif" font-size="8" fill="#94A3B8">Red Commands</text>
+  
+  <line x1="70" y1="130" x2="110" y2="130" stroke="#3B82F6" stroke-width="2" stroke-dasharray="5,3"/>
+  <text x="120" y="134" font-family="Arial, sans-serif" font-size="8" fill="#94A3B8">Blue Commands</text>
+  
+  <line x1="70" y1="150" x2="110" y2="150" stroke="#A78BFA" stroke-width="2"/>
+  <text x="120" y="154" font-family="Arial, sans-serif" font-size="8" fill="#94A3B8">Data Store</text>
+</svg>

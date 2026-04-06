@@ -241,15 +241,16 @@ class BaseAgent(ABC):
         """
         actions = []
         
-        # Pattern 1: JSON blocks with markers
+        # Pattern 1: JSON blocks with markers (preferred — unambiguous)
         json_pattern = r'```json\s*(.*?)\s*```'
         matches = re.findall(json_pattern, response, re.DOTALL)
         
-        # Pattern 2: Try to find standalone JSON objects
         if not matches:
-            # Look for JSON objects starting with {
-            json_obj_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
-            matches = re.findall(json_obj_pattern, response, re.DOTALL)
+            logger.warning(
+                "No ```json``` blocks found in LLM response. "
+                "The model may not be following the expected output format. "
+                f"Response preview: {response[:200]!r}"
+            )
         
         for match in matches:
             try:
@@ -280,9 +281,9 @@ class BaseAgent(ABC):
                 logger.debug(f"Parsed action: {action_type}")
                 
             except json.JSONDecodeError as e:
-                logger.debug(f"Failed to parse JSON action: {match[:100]}... Error: {e}")
+                logger.warning(f"Failed to parse JSON action block: {match[:100]!r} — Error: {e}")
             except Exception as e:
-                logger.warning(f"Error processing action: {e}")
+                logger.warning(f"Error processing action block: {e}")
         
         return actions
     

@@ -1,10 +1,67 @@
 """Configuration management using pydantic-settings."""
 
+import os
+import re
 from functools import lru_cache
-from typing import Literal, Optional, List
+from typing import Literal, Optional, List, Set
+from urllib.parse import urlparse
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+# SSRF Prevention: Allowed URL schemes and blocked IP ranges
+ALLOWED_URL_SCHEMES: Set[str] = {"http", "https"}
+BLOCKED_PRIVATE_IP_PATTERNS = [
+    r"^127\.",  # Loopback
+    r"^10\.",  # Class A private
+    r"^172\.(1[6-9]|2[0-9]|3[0-1])\.",  # Class B private
+    r"^192\.168\.",  # Class C private
+    r"^169\.254\.",  # Link-local
+    r"^0\.0\.0\.0",  # All interfaces
+    r"^::1",  # IPv6 loopback
+    r"^fc00:",  # IPv6 private
+    r"^fe80:",  # IPv6 link-local
+    r"^localhost$",  # Localhost hostname
+]
+
+
+def validate_url_for_ssrf(url: str, allow_localhost: bool = False) -> tuple[bool, str]:
+    """Validate a URL to prevent SSRF attacks.
+    
+    Args:
+        url: The URL to validate
+        allow_localhost: Whether to allow localhost/private IPs (for local development)
+        
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if not url:
+        return False, "URL cannot be empty"
+    
+    try:
+        parsed = urlparse(url)
+        
+        # Check scheme
+        if parsed.scheme.lower() not in ALLOWED_URL_SCHEMES:
+            return False, f"URL scheme '{parsed.scheme}' not allowed. Allowed: {ALLOWED_URL_SCHEMES}"
+        
+        # Extract hostname
+        hostname = parsed.hostname
+        if not hostname:
+            return False, "Could not parse hostname from URL"
+        
+        # Check for blocked IP patterns if not allowing localhost
+        if not allow_localhost:
+            hostname_lower = hostname.lower()
+            for pattern in BLOCKED_PRIVATE_IP_PATTERNS:
+                if re.match(pattern, hostname_lower):
+                    return False, f"Access to private/internal addresses is blocked: {hostname}"
+        
+        return True, ""
+        
+    except Exception as e:
+        return False, f"Invalid URL format: {str(e)}"
 
 
 class OpenAICompatibleEndpoint(BaseSettings):
@@ -33,6 +90,22 @@ class OpenAICompatibleEndpoint(BaseSettings):
     timeout: int = 300  # Request timeout in seconds
     max_retries: int = 3  # Max retry attempts
     headers: dict = Field(default_factory=dict)  # Additional headers
+    
+    # SSRF protection
+    allow_localhost: bool = True  # Allow localhost for local development
+    
+    @model_validator(mode="after")
+    def validate_base_url(self) -> "OpenAICompatibleEndpoint":
+        """Validate base_url for SSRF prevention."""
+        if self.enabled and self.base_url:
+            # For configuration, we allow localhost if explicitly set
+            is_valid, error = validate_url_for_ssrf(
+                self.base_url, 
+                allow_localhost=self.allow_localhost
+            )
+            if not is_valid:
+                raise ValueError(f"Invalid base_url: {error}")
+        return self
 
 
 class LLMSettings(BaseSettings):
@@ -102,7 +175,34 @@ class AppSettings(BaseSettings):
     
     debug: bool = False
     log_level: str = "INFO"
-    secret_key: str = "change-me-in-production"
+    secret_key: Optional[str] = None  # REQUIRED - no default for security
+    
+    # JWT settings
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60
+    
+    # Rate limiting
+    rate_limit_requests: int = 100
+    rate_limit_window_seconds: int = 60
+    
+    @field_validator("secret_key")
+    @classmethod
+    def validate_secret_key(cls, v: Optional[str]) -> str:
+        if not v:
+            # In production, this should fail. For development, generate a warning.
+            import secrets as sec
+            import warnings
+            warnings.warn(
+                "APP_SECRET_KEY is not set. Using a temporary insecure key. "
+                "Set APP_SECRET_KEY environment variable for production. "
+                "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\"",
+                UserWarning
+            )
+            return sec.token_hex(32)  # Generate temporary key for development
+        if len(v) < 32:
+            raise ValueError("APP_SECRET_KEY must be at least 32 characters long")
+        return v
+    
     host: str = "0.0.0.0"
     port: int = 8000
 
@@ -118,6 +218,33 @@ class AgentSettings(BaseSettings):
     auto_confirm: bool = False
 
 
+class DatabaseSettings(BaseSettings):
+    """Database configuration."""
+    
+    model_config = SettingsConfigDict(env_prefix="DB_")
+    
+    host: str = "localhost"
+    port: int = 5432
+    name: str = "purple_team_gpt"
+    user: str = "postgres"
+    password: str = "postgres"
+    
+    # Connection pool settings
+    pool_size: int = 10
+    max_overflow: int = 20
+    pool_timeout: int = 30
+    
+    @property
+    def url(self) -> str:
+        """Get the database URL."""
+        return f"postgresql://{self.user}:***@{self.host}:{self.port}/{self.name}"
+    
+    @property
+    def async_url(self) -> str:
+        """Get the async database URL."""
+        return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
+
+
 class Settings(BaseSettings):
     """Main settings container."""
     
@@ -125,6 +252,7 @@ class Settings(BaseSettings):
     chroma: ChromaSettings = Field(default_factory=ChromaSettings)
     app: AppSettings = Field(default_factory=AppSettings)
     agent: AgentSettings = Field(default_factory=AgentSettings)
+    db: DatabaseSettings = Field(default_factory=DatabaseSettings)
     
     # Multiple OpenAI-compatible endpoints (configured programmatically)
     openai_compatible_endpoints: List[OpenAICompatibleEndpoint] = Field(default_factory=list)

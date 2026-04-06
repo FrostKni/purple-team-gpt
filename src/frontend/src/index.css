@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 @layer base {
+  /* Dark Theme - Default (Cyber Dark) */
   :root {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
@@ -25,35 +26,79 @@
     --ring: 262 83% 58%;
     --radius: 0.5rem;
     
-    /* Purple Team Colors */
+    /* Purple Team Colors - Dark */
     --red: 0 84% 60%;
     --red-foreground: 0 0% 100%;
     --blue: 217 91% 60%;
     --blue-foreground: 0 0% 100%;
     --purple: 262 83% 58%;
     --purple-foreground: 0 0% 100%;
+    
+    /* Additional semantic colors */
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
   }
 
+  /* Light Theme - Cyber Light */
   .light {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    /* Base - Slightly warm off-white for reduced eye strain */
+    --background: 220 20% 98%;
+    --foreground: 222 47% 11%;
+    
+    /* Cards - Subtle gray with slight purple tint */
+    --card: 220 15% 100%;
+    --card-foreground: 222 47% 11%;
+    
+    /* Popover - Clean white */
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 222 47% 11%;
+    
+    /* Primary - Keep the signature purple/pink */
     --primary: 262 83% 58%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --primary-foreground: 0 0% 100%;
+    
+    /* Secondary - Subtle purple-tinted gray */
+    --secondary: 250 30% 95%;
+    --secondary-foreground: 222 47% 11%;
+    
+    /* Muted - For less emphasis */
+    --muted: 220 15% 94%;
+    --muted-foreground: 220 10% 46%;
+    
+    /* Accent - Slightly more prominent */
+    --accent: 260 50% 92%;
+    --accent-foreground: 262 83% 35%;
+    
+    /* Destructive - Softer red for light mode */
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+    
+    /* Borders - Subtle but visible */
+    --border: 250 20% 88%;
+    --input: 250 20% 88%;
+    
+    /* Ring - Purple focus */
     --ring: 262 83% 58%;
+    
+    /* Purple Team Colors - Light Mode Variants */
+    --red: 0 72% 55%;
+    --red-foreground: 0 0% 100%;
+    --blue: 217 82% 52%;
+    --blue-foreground: 0 0% 100%;
+    --purple: 262 83% 58%;
+    --purple-foreground: 0 0% 100%;
+    
+    /* Semantic colors - Light mode */
+    --success: 142 64% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 85% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 199 85% 42%;
+    --info-foreground: 0 0% 100%;
   }
 }
 
@@ -67,7 +112,7 @@
   }
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar - Dark */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -85,7 +130,20 @@
   @apply bg-muted-foreground/50;
 }
 
-/* Glowing effects */
+/* Light mode scrollbar */
+.light ::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Glowing effects - Dark mode */
 .glow-red {
   box-shadow: 0 0 20px hsl(var(--red) / 0.4), 0 0 40px hsl(var(--red) / 0.2);
 }
@@ -96,6 +154,19 @@
 
 .glow-purple {
   box-shadow: 0 0 20px hsl(var(--purple) / 0.4), 0 0 40px hsl(var(--purple) / 0.2);
+}
+
+/* Light mode - Subtle shadows instead of glow */
+.light .glow-red {
+  box-shadow: 0 2px 8px hsl(var(--red) / 0.2), 0 4px 16px hsl(var(--red) / 0.1);
+}
+
+.light .glow-blue {
+  box-shadow: 0 2px 8px hsl(var(--blue) / 0.2), 0 4px 16px hsl(var(--blue) / 0.1);
+}
+
+.light .glow-purple {
+  box-shadow: 0 2px 8px hsl(var(--purple) / 0.2), 0 4px 16px hsl(var(--purple) / 0.1);
 }
 
 /* Grid pattern background */
@@ -123,6 +194,11 @@
   font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
 }
 
+/* Light mode terminal - darker background for contrast */
+.light .terminal-text {
+  background: hsl(220 20% 95%);
+}
+
 /* Status indicators */
 .status-dot {
   @apply w-2 h-2 rounded-full;
@@ -142,4 +218,988 @@
 
 .status-dot.idle {
   @apply bg-gray-500;
+}
+
+/* Gradient text */
+.gradient-text {
+  @apply bg-clip-text text-transparent bg-gradient-to-r;
+}
+
+.gradient-text-purple {
+  @apply gradient-text from-purple-500 via-pink-500 to-rose-500;
+}
+
+.light .gradient-text-purple {
+  @apply gradient-text from-purple-600 via-pink-600 to-rose-600;
+}
+
+.gradient-text-cyan {
+  @apply gradient-text from-cyan-400 to-blue-500;
+}
+
+.light .gradient-text-cyan {
+  @apply gradient-text from-cyan-500 to-blue-600;
+}
+
+.gradient-text-green {
+  @apply gradient-text from-green-400 to-emerald-500;
+}
+
+.light .gradient-text-green {
+  @apply gradient-text from-green-500 to-emerald-600;
+}
+
+/* Card hover effects */
+.card-hover {
+  @apply transition-all duration-300;
+}
+
+.card-hover:hover {
+  @apply transform -translate-y-0.5 shadow-lg;
+}
+
+.light .card-hover:hover {
+  box-shadow: 0 10px 40px -10px hsl(var(--purple) / 0.15);
+}
+
+/* Network node styles */
+.network-node {
+  @apply transition-all duration-200;
+}
+
+.network-node:hover {
+  @apply scale-110;
+}
+
+/* Badge variants - Dark */
+.badge-success {
+  @apply bg-green-500/20 text-green-400 border-green-500/30;
+}
+
+.badge-warning {
+  @apply bg-yellow-500/20 text-yellow-400 border-yellow-500/30;
+}
+
+.badge-error {
+  @apply bg-red-500/20 text-red-400 border-red-500/30;
+}
+
+.badge-info {
+  @apply bg-blue-500/20 text-blue-400 border-blue-500/30;
+}
+
+/* Badge variants - Light */
+.light .badge-success {
+  @apply bg-green-100 text-green-700 border-green-200;
+}
+
+.light .badge-warning {
+  @apply bg-yellow-100 text-yellow-700 border-yellow-200;
+}
+
+.light .badge-error {
+  @apply bg-red-100 text-red-700 border-red-200;
+}
+
+.light .badge-info {
+  @apply bg-blue-100 text-blue-700 border-blue-200;
+}
+
+/* Progress bar animation */
+@keyframes progress-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.progress-animate {
+  animation: progress-pulse 2s ease-in-out infinite;
+}
+
+/* Container status colors - Dark */
+.container-running {
+  @apply border-green-500/50 bg-green-500/5;
+}
+
+.container-stopped {
+  @apply border-gray-500/50 bg-gray-500/5;
+}
+
+.container-error {
+  @apply border-red-500/50 bg-red-500/5;
+}
+
+/* Container status colors - Light */
+.light .container-running {
+  @apply border-green-400 bg-green-50;
+}
+
+.light .container-stopped {
+  @apply border-gray-300 bg-gray-50;
+}
+
+.light .container-error {
+  @apply border-red-300 bg-red-50;
+}
+
+/* Network connection animation */
+@keyframes flow {
+  0% { stroke-dashoffset: 24; }
+  100% { stroke-dashoffset: 0; }
+}
+
+.connection-flow {
+  animation: flow 1s linear infinite;
+}
+
+/* Tooltip styles */
+.tooltip {
+  @apply px-2 py-1 text-xs rounded shadow-lg;
+}
+
+.dark .tooltip {
+  @apply bg-gray-800 text-white;
+}
+
+.light .tooltip {
+  @apply bg-gray-900 text-white;
+}
+
+/* Loading skeleton */
+.skeleton {
+  @apply animate-pulse rounded;
+}
+
+.dark .skeleton {
+  @apply bg-gray-500/20;
+}
+
+.light .skeleton {
+  @apply bg-gray-200;
+}
+
+/* Focus ring */
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:ring-offset-2;
+}
+
+.light .focus-ring {
+  @apply focus:ring-purple-500/40 focus:ring-offset-white;
+}
+
+/* Animated gradient border */
+@keyframes gradient-border {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.gradient-border {
+  background: linear-gradient(90deg, #8b5cf6, #ec4899, #ef4444, #8b5cf6);
+  background-size: 300% 300%;
+  animation: gradient-border 3s ease infinite;
+}
+
+/* Glass effect */
+.glass {
+  @apply backdrop-blur-md border;
+}
+
+.dark .glass {
+  @apply bg-white/5 border-white/10;
+}
+
+.light .glass {
+  @apply bg-white/70 border-purple-200/50;
+}
+
+/* Neon glow - Dark mode only */
+.dark .neon-red {
+  text-shadow: 0 0 10px #ef4444, 0 0 20px #ef4444, 0 0 40px #ef4444;
+}
+
+.dark .neon-blue {
+  text-shadow: 0 0 10px #3b82f6, 0 0 20px #3b82f6, 0 0 40px #3b82f6;
+}
+
+.dark .neon-purple {
+  text-shadow: 0 0 10px #8b5cf6, 0 0 20px #8b5cf6, 0 0 40px #8b5cf6;
+}
+
+.dark .neon-green {
+  text-shadow: 0 0 10px #22c55e, 0 0 20px #22c55e, 0 0 40px #22c55e;
+}
+
+/* Light mode - Remove neon, use clean text */
+.light .neon-red,
+.light .neon-blue,
+.light .neon-purple,
+.light .neon-green {
+  text-shadow: none;
+}
+
+/* Red Agent specific - Light mode adjustments */
+.light [data-agent="red"],
+.light .red-agent-card {
+  border-color: hsl(var(--red) / 0.3);
+  background: linear-gradient(135deg, hsl(var(--red) / 0.05), transparent);
+}
+
+/* Blue Agent specific - Light mode adjustments */
+.light [data-agent="blue"],
+.light .blue-agent-card {
+  border-color: hsl(var(--blue) / 0.3);
+  background: linear-gradient(135deg, hsl(var(--blue) / 0.05), transparent);
+}
+
+/* Header gradient for light mode */
+.light .header-gradient {
+  background: linear-gradient(135deg, hsl(262 83% 58% / 0.1), hsl(330 80% 60% / 0.1));
+}
+
+/* Sidebar adjustments for light mode */
+.light .sidebar-item {
+  @apply hover:bg-purple-100/50;
+}
+
+.light .sidebar-item.active {
+  @apply bg-purple-100 text-purple-700;
+}
+
+/* Code blocks in light mode */
+.light pre,
+.light code {
+  background: hsl(220 20% 96%);
+  border: 1px solid hsl(var(--border));
+}
+
+/* Charts and graphs in light mode */
+.light .chart-grid {
+  stroke: hsl(var(--border));
+}
+
+.light .chart-text {
+  fill: hsl(var(--muted-foreground));
+}
+
+/* Input fields in light mode */
+.light input,
+.light textarea,
+.light select {
+  @apply bg-white border-gray-200;
+  @apply focus:border-purple-400 focus:ring-purple-400/20;
+}
+
+/* Buttons in light mode */
+.light .btn-primary {
+  @apply bg-purple-600 hover:bg-purple-700 text-white;
+}
+
+.light .btn-secondary {
+  @apply bg-gray-100 hover:bg-gray-200 text-gray-900;
+}
+
+.light .btn-danger {
+  @apply bg-red-600 hover:bg-red-700 text-white;
+}
+
+/* Table styles in light mode */
+.light table {
+  @apply divide-gray-200;
+}
+
+.light th {
+  @apply bg-gray-50 text-gray-700;
+}
+
+.light td {
+  @apply bg-white;
+}
+
+.light tr:hover td {
+  @apply bg-purple-50;
+}
+
+/* ============================================
+   SIDEBAR STYLES - Theme Aware
+   ============================================ */
+
+.sidebar {
+  @apply w-56 border-r border-border;
+}
+
+/* Dark mode sidebar */
+:root .sidebar {
+  background: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(8px);
+}
+
+/* Light mode sidebar */
+.light .sidebar {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
+  box-shadow: 1px 0 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Sidebar header */
+.sidebar-header {
+  @apply p-4 border-b border-border;
+}
+
+/* Sidebar logo icon */
+.sidebar-logo-icon {
+  @apply w-8 h-8 rounded-lg flex items-center justify-center shadow-md;
+  background: linear-gradient(135deg, #8b5cf6, #ec4899);
+}
+
+/* Sidebar section label */
+.sidebar-section-label {
+  @apply text-[10px] font-medium text-muted-foreground uppercase tracking-wider;
+}
+
+/* Sidebar divider */
+.sidebar-divider {
+  @apply my-3 border-t border-border;
+}
+
+/* Sidebar item base */
+.sidebar-item {
+  @apply w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all border border-transparent;
+}
+
+/* Sidebar item inactive state */
+.sidebar-item:not(.sidebar-item-red):not(.sidebar-item-blue):not(.sidebar-item-cyan):not(.sidebar-item-indigo):not(.sidebar-item-green):not(.sidebar-item-yellow):not(.sidebar-item-purple) {
+  @apply text-muted-foreground;
+}
+
+:root .sidebar-item:not([class*="sidebar-item-"]):hover {
+  @apply text-foreground;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.light .sidebar-item:not([class*="sidebar-item-"]):hover {
+  @apply text-foreground bg-accent;
+}
+
+/* Sidebar active items - Red */
+.sidebar-item-red {
+  @apply border;
+}
+
+:root .sidebar-item-red {
+  @apply text-red-400;
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.light .sidebar-item-red {
+  @apply text-red-600;
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+/* Sidebar active items - Blue */
+.sidebar-item-blue {
+  @apply border;
+}
+
+:root .sidebar-item-blue {
+  @apply text-blue-400;
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.light .sidebar-item-blue {
+  @apply text-blue-600;
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+/* Sidebar active items - Cyan */
+.sidebar-item-cyan {
+  @apply border;
+}
+
+:root .sidebar-item-cyan {
+  @apply text-cyan-400;
+  background: rgba(6, 182, 212, 0.1);
+  border-color: rgba(6, 182, 212, 0.3);
+}
+
+.light .sidebar-item-cyan {
+  @apply text-cyan-600;
+  background: rgba(6, 182, 212, 0.08);
+  border-color: rgba(6, 182, 212, 0.2);
+}
+
+/* Sidebar active items - Indigo */
+.sidebar-item-indigo {
+  @apply border;
+}
+
+:root .sidebar-item-indigo {
+  @apply text-indigo-400;
+  background: rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.light .sidebar-item-indigo {
+  @apply text-indigo-600;
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+/* Sidebar active items - Green */
+.sidebar-item-green {
+  @apply border;
+}
+
+:root .sidebar-item-green {
+  @apply text-green-400;
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.light .sidebar-item-green {
+  @apply text-green-600;
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+/* Sidebar active items - Yellow */
+.sidebar-item-yellow {
+  @apply border;
+}
+
+:root .sidebar-item-yellow {
+  @apply text-yellow-400;
+  background: rgba(234, 179, 8, 0.1);
+  border-color: rgba(234, 179, 8, 0.3);
+}
+
+.light .sidebar-item-yellow {
+  @apply text-yellow-600;
+  background: rgba(234, 179, 8, 0.08);
+  border-color: rgba(234, 179, 8, 0.2);
+}
+
+/* Sidebar active items - Purple */
+.sidebar-item-purple {
+  @apply border;
+}
+
+:root .sidebar-item-purple {
+  @apply text-purple-400;
+  background: rgba(139, 92, 246, 0.1);
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+.light .sidebar-item-purple {
+  @apply text-purple-600;
+  background: rgba(139, 92, 246, 0.08);
+  border-color: rgba(139, 92, 246, 0.2);
+}
+
+/* Sidebar badges */
+.sidebar-badge {
+  @apply ml-auto px-1.5 py-0.5 text-[10px] font-medium rounded-full;
+}
+
+.sidebar-badge-red {
+  @apply bg-red-500/20 text-red-400;
+}
+
+.light .sidebar-badge-red {
+  @apply bg-red-100 text-red-600;
+}
+
+.sidebar-badge-blue {
+  @apply bg-blue-500/20 text-blue-400;
+}
+
+.light .sidebar-badge-blue {
+  @apply bg-blue-100 text-blue-600;
+}
+
+/* Sidebar footer section */
+.sidebar-footer-section {
+  @apply p-3 border-t border-border;
+}
+
+/* Sidebar status box */
+.sidebar-status-box {
+  @apply p-3 rounded-lg border;
+}
+
+:root .sidebar-status-box {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), transparent);
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+.light .sidebar-status-box {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.08), rgba(34, 197, 94, 0.02));
+  border-color: rgba(34, 197, 94, 0.15);
+}
+
+.sidebar-status-text {
+  @apply text-xs font-medium text-green-400;
+}
+
+.light .sidebar-status-text {
+  @apply text-green-600;
+}
+
+.sidebar-status-value {
+  @apply font-mono;
+}
+
+.sidebar-status-green {
+  @apply text-green-400;
+}
+
+.light .sidebar-status-green {
+  @apply text-green-600;
+}
+
+.sidebar-status-blue {
+  @apply text-blue-400;
+}
+
+.light .sidebar-status-blue {
+  @apply text-blue-600;
+}
+
+/* Sidebar tips section */
+.sidebar-tips-section {
+  @apply p-3 border-t border-border;
+}
+
+.sidebar-tip-box {
+  @apply p-2 rounded border;
+}
+
+:root .sidebar-tip-box {
+  background: rgba(234, 179, 8, 0.1);
+  border-color: rgba(234, 179, 8, 0.2);
+}
+
+.light .sidebar-tip-box {
+  background: rgba(251, 191, 36, 0.08);
+  border-color: rgba(251, 191, 36, 0.2);
+}
+
+.sidebar-tip-icon {
+  @apply text-yellow-400;
+}
+
+.light .sidebar-tip-icon {
+  @apply text-yellow-500;
+}
+
+.sidebar-tip-text {
+  @apply text-[10px] text-yellow-200/80;
+}
+
+.light .sidebar-tip-text {
+  @apply text-yellow-700;
+}
+
+/* ============================================
+   ACCESSIBILITY ENHANCEMENTS
+   ============================================ */
+
+/* Screen reader only - visually hidden but accessible */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.sr-only:focus,
+.sr-only:active {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: inherit;
+  margin: inherit;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/* ============================================
+   VISIBLE FOCUS INDICATORS - 4.5:1 contrast
+   ============================================ */
+
+/* Global focus styles for all interactive elements */
+*:focus-visible {
+  outline: 2px solid hsl(262 83% 58%);
+  outline-offset: 2px;
+}
+
+/* Button focus */
+button:focus-visible,
+.btn:focus-visible,
+[class*="btn-"]:focus-visible {
+  outline: 2px solid hsl(262 83% 58%);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px hsl(262 83% 58% / 0.25);
+}
+
+/* Link focus */
+a:focus-visible {
+  outline: 2px solid hsl(262 83% 58%);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Input focus */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid hsl(262 83% 58%);
+  outline-offset: 2px;
+  border-color: hsl(262 83% 58%);
+  box-shadow: 0 0 0 4px hsl(262 83% 58% / 0.15);
+}
+
+/* Card/list item focus */
+[role="listitem"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid hsl(262 83% 58%);
+  outline-offset: 2px;
+}
+
+/* Skip link for keyboard navigation */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  padding: 8px 16px;
+  background: hsl(262 83% 58%);
+  color: white;
+  text-decoration: none;
+  z-index: 100;
+  font-weight: 600;
+  border-radius: 0 0 4px 0;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* ============================================
+   TOUCH TARGETS - Min 44x44px
+   ============================================ */
+
+/* Base touch target class */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Button touch targets */
+button,
+.btn,
+[class*="btn-"] {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 16px;
+}
+
+/* Small buttons still need accessible touch targets */
+.btn-sm,
+button[size="sm"] {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 12px;
+}
+
+/* Icon buttons */
+.btn-icon,
+button[size="icon"] {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px;
+}
+
+/* Sidebar navigation items */
+.sidebar-item {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px 12px;
+}
+
+/* Touch target spacing */
+.touch-target-group > * + * {
+  margin-left: 8px;
+}
+
+/* Mobile touch target spacing */
+@media (max-width: 640px) {
+  .touch-target-group > * + * {
+    margin-left: 12px;
+  }
+}
+
+/* ============================================
+   CONTRAST IMPROVEMENTS - 4.5:1 minimum
+   ============================================ */
+
+/* Dark mode - ensure text meets contrast requirements */
+:root {
+  /* Improve muted foreground contrast from 65.1% to 70% lightness */
+  --muted-foreground: 215 20.2% 70%;
+}
+
+/* Text colors with sufficient contrast */
+.text-muted-foreground {
+  color: hsl(215 20.2% 70%);
+}
+
+.light .text-muted-foreground {
+  color: hsl(220 10% 40%);
+}
+
+/* Badge text - ensure sufficient contrast */
+.badge-success {
+  @apply bg-green-500/25 text-green-300 border-green-500/40;
+}
+
+.light .badge-success {
+  @apply bg-green-100 text-green-800 border-green-300;
+}
+
+.badge-warning {
+  @apply bg-yellow-500/25 text-yellow-300 border-yellow-500/40;
+}
+
+.light .badge-warning {
+  @apply bg-yellow-100 text-yellow-800 border-yellow-300;
+}
+
+.badge-error {
+  @apply bg-red-500/25 text-red-300 border-red-500/40;
+}
+
+.light .badge-error {
+  @apply bg-red-100 text-red-800 border-red-300;
+}
+
+.badge-info {
+  @apply bg-blue-500/25 text-blue-300 border-blue-500/40;
+}
+
+.light .badge-info {
+  @apply bg-blue-100 text-blue-800 border-blue-300;
+}
+
+/* Secondary text improvements */
+.text-secondary {
+  color: hsl(215 20.2% 75%);
+}
+
+.light .text-secondary {
+  color: hsl(220 15% 35%);
+}
+
+/* ============================================
+   RESPONSIVE SIDEBAR FOR MOBILE
+   ============================================ */
+
+/* Mobile sidebar overlay */
+.sidebar-overlay {
+  @apply fixed inset-0 bg-black/50 z-40 md:hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.sidebar-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Mobile sidebar transform */
+@media (max-width: 768px) {
+  .sidebar {
+    @apply fixed z-50;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease-in-out;
+  }
+  
+  .sidebar.open {
+    transform: translateX(0);
+  }
+}
+
+/* ============================================
+   REDUCED MOTION SUPPORT
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  
+  .animate-pulse {
+    animation: none;
+  }
+  
+  .connection-flow {
+    animation: none;
+  }
+}
+
+/* ============================================
+   HIGH CONTRAST MODE SUPPORT
+   ============================================ */
+
+@media (prefers-contrast: high) {
+  :root {
+    --muted-foreground: 215 20.2% 85%;
+    --border: 217.2 32.6% 35%;
+  }
+  
+  .light {
+    --muted-foreground: 220 10% 30%;
+    --border: 250 20% 70%;
+  }
+  
+  .sidebar-item {
+    border: 1px solid hsl(var(--border));
+  }
+  
+  .badge-success,
+  .badge-warning,
+  .badge-error,
+  .badge-info {
+    border-width: 2px;
+  }
+}
+
+/* ============================================
+   PRINT STYLES
+   ============================================ */
+
+@media print {
+  .sidebar,
+  .header,
+  button {
+    display: none !important;
+  }
+  
+  main {
+    margin: 0;
+    padding: 1rem;
+  }
+  
+  .card {
+    box-shadow: none;
+    border: 1px solid #ccc;
+  }
+}
+
+/* ============================================
+   RESPONSIVE GRID UTILITIES
+   ============================================ */
+
+/* Auto-fit grid that responds to content */
+.grid-auto-fit {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 1rem;
+}
+
+/* Responsive gap utilities */
+.gap-responsive {
+  gap: 0.5rem;
+}
+
+@media (min-width: 640px) {
+  .gap-responsive {
+    gap: 0.75rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .gap-responsive {
+    gap: 1rem;
+  }
+}
+
+/* Responsive padding utilities */
+.p-responsive {
+  padding: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .p-responsive {
+    padding: 1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .p-responsive {
+    padding: 1.5rem;
+  }
+}
+
+/* ============================================
+   ACCESSIBLE ANIMATIONS
+   ============================================ */
+
+/* Fade in animation */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-in-out;
+}
+
+/* Slide in from left */
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.3s ease-out;
+}
+
+/* Scale in animation */
+@keyframes scale-in {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
 }

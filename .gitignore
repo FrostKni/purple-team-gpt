@@ -10,9 +10,25 @@ dist/
 
 # Environment
 .env
+.env.local
+.env.*.local
+.env.production
 .venv/
 venv/
 env/
+
+# Secrets and Security
+secrets/
+*.pem
+*.key
+*.crt
+*.csr
+*.gpg
+docker/ssl/*.pem
+docker/ssl/*.key
+docker/ssl/*.crt
+certbot/conf/
+certbot/logs/
 
 # IDE
 .idea/
@@ -37,3 +53,14 @@ build/
 
 # ChromaDB
 chroma.sqlite3
+
+# Coverage
+.coverage
+htmlcov/
+*.cover
+
+# MyPy
+.mypy_cache/
+
+# Pytest
+.pytest_cache/

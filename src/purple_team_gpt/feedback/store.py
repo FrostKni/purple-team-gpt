@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from sqlmodel import Session, SQLModel, create_engine, select
+from sqlmodel import Session, SQLModel, create_engine, func, select
 
 from purple_team_gpt.feedback.models import (
     AgentType,
@@ -202,7 +202,7 @@ class FeedbackStore:
             Count of matching feedback entries.
         """
         with Session(self.engine) as session:
-            statement = select(FeedbackEntry)
+            statement = select(func.count(FeedbackEntry.id))
             
             if session_id:
                 statement = statement.where(FeedbackEntry.session_id == session_id)
@@ -213,7 +213,7 @@ class FeedbackStore:
             if max_rating is not None:
                 statement = statement.where(FeedbackEntry.rating <= max_rating)
             
-            return len(list(session.exec(statement)))
+            return session.exec(statement).one()
     
     def get_high_rated(self, min_rating: int = 4) -> list[FeedbackEntry]:
         """Get all high-rated feedback entries for fine-tuning.

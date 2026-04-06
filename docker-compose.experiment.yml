@@ -1,0 +1,442 @@
+# =============================================================================
+# Purple Team GPT - Full Docker Stack for Experimentation
+# =============================================================================
+# Complete deployment with:
+#   - Orchestrator (Ubuntu) - Central coordination
+#   - Red Agent (Kali Linux) - Full offensive toolkit
+#   - Blue Agent (Ubuntu Server) - Full defensive toolkit
+#   - ChromaDB - Vector storage for learning
+#   - Redis - Message broker
+#   - Frontend - Web UI (optional)
+#
+# Usage:
+#   # Build all images
+#   docker-compose -f docker-compose.experiment.yml build
+#
+#   # Start all services
+#   docker-compose -f docker-compose.experiment.yml up -d
+#
+#   # View logs
+#   docker-compose -f docker-compose.experiment.yml logs -f
+#
+#   # Stop all services
+#   docker-compose -f docker-compose.experiment.yml down
+#
+# Prerequisites:
+#   - Docker Engine 20.10+
+#   - Docker Compose v2.0+
+#   - At least 16GB RAM for full stack
+#   - 50GB+ disk space for images
+# =============================================================================
+
+version: '3.8'
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  # Management network - orchestrator and agent communication
+  management:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.0.0/24
+          gateway: 10.0.0.1
+
+  # Attack network - isolated network for Red agent to target
+  attack:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.100.0/24
+          gateway: 192.168.100.1
+
+  # Defense network - monitoring network
+  defense:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.16.0.0/24
+          gateway: 172.16.0.1
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+volumes:
+  # Persistent storage
+  chromadb-data:
+    driver: local
+  redis-data:
+    driver: local
+  orchestrator-data:
+    driver: local
+  red-agent-data:
+    driver: local
+  blue-agent-data:
+    driver: local
+  loot-data:
+    driver: local
+  reports-data:
+    driver: local
+
+# =============================================================================
+# SERVICES
+# =============================================================================
+services:
+  # ===========================================================================
+  # ORCHESTRATOR - Central Coordination Service
+  # ===========================================================================
+  orchestrator:
+    build:
+      context: .
+      dockerfile: docker/orchestrator.Dockerfile
+    image: purple-team-orchestrator:latest
+    container_name: purple-team-orchestrator
+    hostname: orchestrator
+    ports:
+      - "8000:8000"
+      - "5555:5555"  # Flower monitoring
+    environment:
+      # Service configuration
+      - SERVICE_NAME=orchestrator
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DEBUG=${DEBUG:-false}
+      # Security
+      - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
+      - API_KEY=${API_KEY:-}
+      # LLM Configuration
+      - LLM_DEFAULT_PROVIDER=${LLM_DEFAULT_PROVIDER:-openai}
+      - LLM_DEFAULT_MODEL=${LLM_DEFAULT_MODEL:-gpt-4o}
+      - LLM_OPENAI_API_KEY=${LLM_OPENAI_API_KEY:-}
+      - LLM_OPENAI_ORG_ID=${LLM_OPENAI_ORG_ID:-}
+      - LLM_ANTHROPIC_API_KEY=${LLM_ANTHROPIC_API_KEY:-}
+      - LLM_LOCAL_MODEL_URL=${LLM_LOCAL_MODEL_URL:-}
+      # Database
+      - DATABASE_URL=sqlite:///data/purple_team.db
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      # Redis
+      - REDIS_URL=redis://redis:6379/0
+      # Agent connections
+      - RED_AGENT_URL=http://red-agent:8000
+      - BLUE_AGENT_URL=http://blue-agent:8000
+    volumes:
+      - orchestrator-data:/app/data
+      - reports-data:/app/reports
+      - ./logs:/app/logs
+    networks:
+      management:
+        ipv4_address: 10.0.0.10
+    depends_on:
+      chromadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ===========================================================================
+  # RED AGENT - Kali Linux with Offensive Tools
+  # ===========================================================================
+  red-agent:
+    build:
+      context: .
+      dockerfile: docker/red-agent-kali.Dockerfile
+    image: purple-team-red-agent:kali
+    container_name: purple-team-red-agent
+    hostname: red-agent
+    ports:
+      - "8001:8000"
+    environment:
+      # Agent configuration
+      - AGENT_TYPE=red
+      - AGENT_ID=red-agent-kali-01
+      - AGENT_NAME=Kali Red Agent
+      - HOST=0.0.0.0
+      - PORT=8000
+      # Orchestrator connection
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - ORCHESTRATOR_API_KEY=${API_KEY:-}
+      # Security settings
+      - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
+      - SAFE_MODE=${SAFE_MODE:-true}
+      - DESTRUCTIVE_OPERATIONS=${DESTRUCTIVE_OPERATIONS:-false}
+      # Tool settings
+      - TOOL_TIMEOUT=300
+      - MAX_CONCURRENT_TASKS=5
+      # LLM Configuration (for local reasoning)
+      - LLM_DEFAULT_PROVIDER=${LLM_DEFAULT_PROVIDER:-openai}
+      - LLM_OPENAI_API_KEY=${LLM_OPENAI_API_KEY:-}
+      - LLM_ANTHROPIC_API_KEY=${LLM_ANTHROPIC_API_KEY:-}
+      # Paths
+      - LOOT_DIR=/opt/loot
+      - PAYLOADS_DIR=/opt/payloads
+      - REPORTS_DIR=/opt/reports
+    volumes:
+      - red-agent-data:/app/data
+      - loot-data:/opt/loot
+      - ./scripts/red_arsenal:/app/scripts/red_arsenal:ro
+      - ./config:/app/config:ro
+    networks:
+      management:
+        ipv4_address: 10.0.0.20
+      attack:
+        ipv4_address: 192.168.100.20
+    # Privileged mode required for network attacks
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_ADMIN
+      - SYS_PTRACE
+    # Network mode for real network access (uncomment if needed)
+    # network_mode: "host"
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "10"
+
+  # ===========================================================================
+  # BLUE AGENT - Ubuntu Server with Defensive Tools
+  # ===========================================================================
+  blue-agent:
+    build:
+      context: .
+      dockerfile: docker/blue-agent-ubuntu.Dockerfile
+    image: purple-team-blue-agent:ubuntu
+    container_name: purple-team-blue-agent
+    hostname: blue-agent
+    ports:
+      - "8002:8000"
+    environment:
+      # Agent configuration
+      - AGENT_TYPE=blue
+      - AGENT_ID=blue-agent-ubuntu-01
+      - AGENT_NAME=Ubuntu Blue Agent
+      - HOST=0.0.0.0
+      - PORT=8000
+      # Orchestrator connection
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - ORCHESTRATOR_API_KEY=${API_KEY:-}
+      # Security settings
+      - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
+      - SAFE_MODE=${SAFE_MODE:-true}
+      # Tool settings
+      - TOOL_TIMEOUT=120
+      - MAX_CONCURRENT_TASKS=10
+      # LLM Configuration (for threat analysis)
+      - LLM_DEFAULT_PROVIDER=${LLM_DEFAULT_PROVIDER:-openai}
+      - LLM_OPENAI_API_KEY=${LLM_OPENAI_API_KEY:-}
+      - LLM_ANTHROPIC_API_KEY=${LLM_ANTHROPIC_API_KEY:-}
+      # Monitoring paths
+      - LOG_PATHS=/var/log
+      - CONFIG_PATHS=/etc
+    volumes:
+      - blue-agent-data:/app/data
+      # Mount host directories for monitoring (adjust as needed)
+      - /var/log:/var/log/host:ro
+      - /etc:/etc/host:ro
+      - ./scripts/blue_arsenal:/app/scripts/blue_arsenal:ro
+      - ./config:/app/config:ro
+    networks:
+      management:
+        ipv4_address: 10.0.0.30
+      defense:
+        ipv4_address: 172.16.0.30
+    # Privileged mode required for defensive operations
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_ADMIN
+      - SYS_PTRACE
+      - SYSLOG
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "10"
+
+  # ===========================================================================
+  # CHROMADB - Vector Storage for Learning
+  # ===========================================================================
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: purple-team-chromadb
+    hostname: chromadb
+    ports:
+      - "8003:8000"
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8000
+      - CHROMA_SERVER_AUTH_CREDENTIALS=${CHROMA_AUTH:-}
+      - CHROMA_SERVER_AUTH_CREDENTIALS_PROVIDER=chromadb.auth.token.TokenConfigServerProvider
+      - CHROMA_SERVER_AUTH_PROVIDER=chromadb.auth.token.TokenAuthServerProvider
+      - ANONYMIZED_TELEMETRY=false
+    volumes:
+      - chromadb-data:/chroma/data
+    networks:
+      management:
+        ipv4_address: 10.0.0.40
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ===========================================================================
+  # REDIS - Message Broker
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: purple-team-redis
+    hostname: redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    networks:
+      management:
+        ipv4_address: 10.0.0.50
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ===========================================================================
+  # TARGET VULNERABLE APP (Optional - for testing)
+  # ===========================================================================
+  dvwa:
+    image: vulnerables/web-dvwa:latest
+    container_name: purple-team-target
+    hostname: dvwa-target
+    ports:
+      - "8080:80"
+    networks:
+      attack:
+        ipv4_address: 192.168.100.100
+    # This is intentionally vulnerable for testing
+    privileged: true
+    profiles:
+      - target
+    restart: unless-stopped
+
+  # ===========================================================================
+  # METASPLOITABLE (Optional - for testing)
+  # ===========================================================================
+  metasploitable:
+    image: tleemcjr/metasploitable2:latest
+    container_name: purple-team-metasploitable
+    hostname: metasploitable
+    networks:
+      attack:
+        ipv4_address: 192.168.100.101
+    privileged: true
+    profiles:
+      - target
+    restart: unless-stopped
+
+  # ===========================================================================
+  # FRONTEND - Web UI (Optional)
+  # ===========================================================================
+  frontend:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+    image: purple-team-frontend:latest
+    container_name: purple-team-frontend
+    hostname: frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000
+      - NODE_ENV=production
+    networks:
+      management:
+        ipv4_address: 10.0.0.60
+    depends_on:
+      - orchestrator
+    profiles:
+      - ui
+    restart: unless-stopped
+
+  # ===========================================================================
+  # PROMETHEUS - Metrics (Optional)
+  # ===========================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: purple-team-prometheus
+    hostname: prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      management:
+        ipv4_address: 10.0.0.70
+    profiles:
+      - monitoring
+    restart: unless-stopped
+
+  # ===========================================================================
+  # GRAFANA - Dashboards (Optional)
+  # ===========================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: purple-team-grafana
+    hostname: grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./monitoring/grafana:/etc/grafana/provisioning:ro
+    networks:
+      management:
+        ipv4_address: 10.0.0.80
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+    restart: unless-stopped

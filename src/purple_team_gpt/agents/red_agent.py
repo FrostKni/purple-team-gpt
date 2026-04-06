@@ -7,7 +7,7 @@ security auditing within defined scope.
 
 import asyncio
 import logging
-import subprocess
+import shlex
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -145,7 +145,7 @@ class ToolRunner:
     # Allowed tools for execution
     ALLOWED_TOOLS = {
         "nmap", "nikto", "gobuster", "sqlmap", "curl", "dig",
-        "whatweb", "ncrack", "hydra", "nmap", "whois", "nbtscan",
+        "whatweb", "ncrack", "hydra", "whois", "nbtscan",
         "enum4linux", "smbclient", "rpcclient", "ldapsearch",
     }
     
@@ -164,6 +164,21 @@ class ToolRunner:
         self.safe_mode = safe_mode
         self.default_timeout = default_timeout
     
+    # Path traversal patterns to block
+    PATH_TRAVERSAL_PATTERNS = [
+        "../",           # Parent directory traversal
+        "..\\",          # Windows parent directory traversal
+        "/etc/passwd",   # Sensitive file access
+        "/etc/shadow",   # Sensitive file access
+        "/root/",        # Root directory access
+        "/home/",        # Home directory access (when not intended)
+        "~",             # Home directory expansion
+        "$HOME",         # Environment variable expansion
+        "${HOME}",       # Environment variable expansion
+        "$USER",         # Environment variable expansion
+        "${USER}",       # Environment variable expansion
+    ]
+    
     def _validate_command(self, command: str, tool_name: str) -> tuple[bool, str]:
         """Validate command for safety.
         
@@ -177,29 +192,91 @@ class ToolRunner:
         if not command:
             return False, "Empty command"
         
-        # Check for destructive tools
+        # Validate the tool binary is in the allowed list
+        try:
+            args = shlex.split(command)
+        except ValueError as e:
+            return False, f"Invalid command syntax: {e}"
+        
+        if not args:
+            return False, "Empty command after parsing"
+        
+        # SECURITY: Ensure the binary path doesn't contain path traversal
+        binary_path = args[0]
+        tool_binary = binary_path.split("/")[-1]  # basename only
+        
+        # Block absolute paths that try to access non-standard locations
+        if binary_path.startswith("/"):
+            # Only allow standard system paths for known tools
+            allowed_prefixes = ["/usr/bin/", "/usr/local/bin/", "/bin/"]
+            if not any(binary_path.startswith(prefix) for prefix in allowed_prefixes):
+                # Check if it's a relative path disguised as absolute
+                if ".." in binary_path:
+                    return False, "Path traversal detected in tool path"
+        
+        # Block relative paths with traversal
+        if ".." in binary_path or binary_path.startswith("./"):
+            return False, "Relative paths with traversal are not allowed"
+        
+        if tool_binary not in self.ALLOWED_TOOLS:
+            return False, f"Tool '{tool_binary}' is not in the allowed tools list"
+        
+        # Check for path traversal in arguments
+        for arg in args[1:]:
+            if ".." in arg:
+                # Allow .. only in specific safe contexts (like URLs for tools)
+                if not any(safe in arg for safe in ["http://", "https://"]):
+                    return False, f"Path traversal detected in argument: {arg[:50]}"
+            
+            # Check for sensitive file access in arguments
+            sensitive_patterns = ["/etc/passwd", "/etc/shadow", "/root/", "/home/"]
+            for pattern in sensitive_patterns:
+                if pattern in arg:
+                    return False, f"Sensitive file path detected in argument: {pattern}"
+        
+        # Check for destructive tools in safe mode
         if self.safe_mode:
             for destructive in self.DESTRUCTIVE_TOOLS:
                 if destructive in command.lower():
                     return False, f"Tool '{destructive}' not allowed in safe mode"
         
-        # Check for allowed tools
-        tool_base = tool_name.split()[0] if tool_name else ""
-        if tool_base and tool_base not in self.ALLOWED_TOOLS:
-            logger.warning(f"Tool '{tool_base}' not in allowed list, executing anyway")
-        
-        # Check for dangerous patterns
+        # Check for dangerous shell injection patterns
         dangerous_patterns = [
             "rm -rf /",
             "> /dev/sd",
             "mkfs",
             ":(){ :|:& };:",  # Fork bomb
             "chmod 777 /",
+            "$((",            # Arithmetic expansion
+            "))",            # Close arithmetic (when combined with above)
         ]
         
         for pattern in dangerous_patterns:
             if pattern in command:
                 return False, f"Dangerous pattern detected: {pattern}"
+        
+        # Check for path traversal patterns
+        for pattern in self.PATH_TRAVERSAL_PATTERNS:
+            if pattern.lower() in command.lower():
+                # Some tools legitimately use these patterns (e.g., curl with URLs)
+                # but we should flag for review in safe mode
+                if self.safe_mode and not any(safe in command for safe in ["http://", "https://"]):
+                    return False, f"Path traversal pattern detected: {pattern}"
+        
+        # Additional check for URL-based path traversal (e.g., http://example.com/../../etc/passwd)
+        for arg in args[1:]:
+            if "http://" in arg or "https://" in arg:
+                # Check for path traversal in URL path
+                if "/.." in arg or "../" in arg:
+                    return False, f"Path traversal detected in URL argument"
+        
+        # Check for shell metacharacters that could lead to injection
+        shell_metacharacters = [";", "|", "`", "$(", "${", "&", "&&", "||", "<", ">", ">>", "<<"]
+        for meta in shell_metacharacters:
+            if meta in command:
+                # These are dangerous and should be blocked
+                # shlex.split should handle most, but double-check
+                return False, f"Shell metacharacter '{meta}' not allowed in command"
         
         return True, ""
     
@@ -233,9 +310,20 @@ class ToolRunner:
         start_time = time.time()
         
         try:
-            # Run command in subprocess
-            process = await asyncio.create_subprocess_shell(
-                command,
+            # Parse command into argument list to avoid shell injection
+            try:
+                args = shlex.split(command)
+            except ValueError as e:
+                return ToolResult(
+                    success=False,
+                    output="",
+                    error=f"Invalid command syntax: {e}",
+                    return_code=-1,
+                )
+            
+            # Run command without shell to prevent injection
+            process = await asyncio.create_subprocess_exec(
+                *args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

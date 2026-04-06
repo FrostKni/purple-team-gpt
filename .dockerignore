@@ -1,22 +1,41 @@
+# Purple Team GPT - Docker Ignore
+# Files to exclude from Docker build context
+
+# Git
+.git
+.gitignore
+
 # Python
-__pycache__/
+__pycache__
 *.py[cod]
 *$py.class
 *.so
 .Python
+.venv
+venv/
+ENV/
 *.egg-info/
 .eggs/
 *.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Build outputs
 dist/
 build/
-*.manifest
-*.spec
-
-# Virtual environments
-.venv/
-venv/
-ENV/
-env/
+*.egg-info/
 
 # IDE
 .idea/
@@ -25,44 +44,45 @@ env/
 *.swo
 *~
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.nox/
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
 
-# Git
-.git/
-.gitignore
-.gitattributes
+# Logs
+logs/
+*.log
 
-# Docker
-Dockerfile*
-docker-compose*.yml
-.dockerignore
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# ChromaDB data (will be mounted as volume)
+data/chromadb/
+
+# Test data
+test_data/
+tests/
 
 # Documentation
 docs/
 *.md
-LICENSE
+!README.md
 
-# Local data and logs
-*.log
-*.sqlite
-*.db
-data/chromadb/
+# CI/CD
+.github/
+.gitlab-ci.yml
 
-# Environment files (should be mounted at runtime)
-.env
-.env.*
-!.env.example
+# Docker
+docker-compose*.yml
+Dockerfile*
+.docker/
 
-# Frontend build artifacts (will be built separately)
-frontend/node_modules/
-frontend/.next/
-frontend/out/
-
-# OS files
+# Misc
 .DS_Store
 Thumbs.db
+*.bak
+*.tmp
+*.temp

@@ -5,15 +5,24 @@ This module provides REST endpoints for:
 - Starting, pausing, resuming, and stopping sessions
 - Getting session details and metrics
 - Listing all sessions
+
+All endpoints require JWT authentication.
 """
 
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field, field_validator
 
 from purple_team_gpt.core.orchestrator import SessionStatus, PurpleOrchestrator
+from purple_team_gpt.backend.security import (
+    get_current_user,
+    rate_limit_dependency,
+    validate_session_id,
+    validate_target,
+    sanitize_input,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +58,18 @@ class SessionCreate(BaseModel):
     target: str = Field(..., description="Target system/network for assessment")
     scope: str = Field("", description="Scope restrictions and constraints")
     metadata: Optional[dict] = Field(default=None, description="Additional session metadata")
+    
+    @field_validator("target")
+    @classmethod
+    def validate_target_field(cls, v: str) -> str:
+        """Validate target field."""
+        return validate_target(v)
+    
+    @field_validator("scope")
+    @classmethod
+    def validate_scope_field(cls, v: str) -> str:
+        """Validate and sanitize scope field."""
+        return sanitize_input(v, max_length=2000)
 
 
 class SessionResponse(BaseModel):
@@ -89,20 +110,35 @@ class SessionActionResponse(BaseModel):
 
 
 @router.post("/", response_model=SessionResponse, status_code=201)
-async def create_session(data: SessionCreate) -> SessionResponse:
+async def create_session(
+    data: SessionCreate,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    _rate: dict = Depends(rate_limit_dependency),
+) -> SessionResponse:
     """Create a new simulation session.
     
     Creates a new session with Red and Blue agents initialized for
     the specified target. The session starts in PENDING status.
+    
+    Requires authentication.
     """
     orch = get_orchestrator()
+    
+    # Validate and sanitize inputs
+    target = validate_target(data.target)
+    scope = sanitize_input(data.scope, max_length=2000)
+    
     session = orch.create_session(
-        target=data.target,
-        scope=data.scope,
+        target=target,
+        scope=scope,
         metadata=data.metadata,
     )
     
-    logger.info(f"Created session {session.id} for target {data.target}")
+    logger.info(
+        f"User {current_user.get('sub', 'unknown')} created session {session.id} "
+        f"for target {target}"
+    )
     
     return SessionResponse(
         id=session.id,
@@ -116,10 +152,16 @@ async def create_session(data: SessionCreate) -> SessionResponse:
 
 
 @router.get("/", response_model=SessionListResponse)
-async def list_sessions(status: Optional[str] = None) -> SessionListResponse:
+async def list_sessions(
+    request: Request,
+    status: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+    _rate: dict = Depends(rate_limit_dependency),
+) -> SessionListResponse:
     """List all sessions, optionally filtered by status.
     
     Returns a list of all sessions, with optional filtering by status.
+    Requires authentication.
     """
     orch = get_orchestrator()
     
@@ -153,12 +195,22 @@ async def list_sessions(status: Optional[str] = None) -> SessionListResponse:
 
 
 @router.get("/{session_id}", response_model=SessionResponse)
-async def get_session(session_id: str) -> SessionResponse:
+async def get_session(
+    session_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    _rate: dict = Depends(rate_limit_dependency),
+) -> SessionResponse:
     """Get session details by ID.
     
     Returns detailed information about a specific session.
+    Requires authentication.
     """
     orch = get_orchestrator()
+    
+    # Validate session ID format
+    session_id = validate_session_id(session_id)
+    
     session = orch.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -175,13 +227,23 @@ async def get_session(session_id: str) -> SessionResponse:
 
 
 @router.post("/{session_id}/start", response_model=SessionActionResponse)
-async def start_session(session_id: str) -> SessionActionResponse:
+async def start_session(
+    session_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    _rate: dict = Depends(rate_limit_dependency),
+) -> SessionActionResponse:
     """Start a simulation session.
     
     Starts the Red and Blue agents for the session in the background.
     The session must be in PENDING or PAUSED status.
+    Requires authentication.
     """
     orch = get_orchestrator()
+    
+    # Validate session ID format
+    session_id = validate_session_id(session_id)
+    
     session = orch.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -195,7 +257,9 @@ async def start_session(session_id: str) -> SessionActionResponse:
     # Start session in background
     orch.start_session_background(session_id)
     
-    logger.info(f"Started session {session_id}")
+    logger.info(
+        f"User {current_user.get('sub', 'unknown')} started session {session_id}"
+    )
     
     return SessionActionResponse(
         message="Session started",
@@ -205,12 +269,22 @@ async def start_session(session_id: str) -> SessionActionResponse:
 
 
 @router.post("/{session_id}/pause", response_model=SessionActionResponse)
-async def pause_session(session_id: str) -> SessionActionResponse:
+async def pause_session(
+    session_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    _rate: dict = Depends(rate_limit_dependency),
+) -> SessionActionResponse:
     """Pause a running session.
     
     Pauses both Red and Blue agents. Can be resumed later.
+    Requires authentication.
     """
     orch = get_orchestrator()
+    
+    # Validate session ID format
+    session_id = validate_session_id(session_id)
+    
     session = orch.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -221,7 +295,9 @@ async def pause_session(session_id: str) -> SessionActionResponse:
             detail="Cannot pause session - not running or not found",
         )
     
-    logger.info(f"Paused session {session_id}")
+    logger.info(
+        f"User {current_user.get('sub', 'unknown')} paused session {session_id}"
+    )
     
     return SessionActionResponse(
         message="Session paused",
@@ -231,12 +307,22 @@ async def pause_session(session_id: str) -> SessionActionResponse:
 
 
 @router.post("/{session_id}/resume", response_model=SessionActionResponse)
-async def resume_session(session_id: str) -> SessionActionResponse:
+async def resume_session(
+    session_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    _rate: dict = Depends(rate_limit_dependency),
+) -> SessionActionResponse:
     """Resume a paused session.
     
     Resumes execution of both Red and Blue agents.
+    Requires authentication.
     """
     orch = get_orchestrator()
+    
+    # Validate session ID format
+    session_id = validate_session_id(session_id)
+    
     session = orch.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -247,7 +333,9 @@ async def resume_session(session_id: str) -> SessionActionResponse:
             detail="Cannot resume session - not paused or not found",
         )
     
-    logger.info(f"Resumed session {session_id}")
+    logger.info(
+        f"User {current_user.get('sub', 'unknown')} resumed session {session_id}"
+    )
     
     return SessionActionResponse(
         message="Session resumed",
@@ -257,17 +345,29 @@ async def resume_session(session_id: str) -> SessionActionResponse:
 
 
 @router.post("/{session_id}/stop", response_model=SessionActionResponse)
-async def stop_session(session_id: str) -> SessionActionResponse:
+async def stop_session(
+    session_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    _rate: dict = Depends(rate_limit_dependency),
+) -> SessionActionResponse:
     """Stop a session.
     
     Stops the session and returns the final state. Cannot be resumed.
+    Requires authentication.
     """
     orch = get_orchestrator()
+    
+    # Validate session ID format
+    session_id = validate_session_id(session_id)
+    
     session = orch.stop_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     
-    logger.info(f"Stopped session {session_id}")
+    logger.info(
+        f"User {current_user.get('sub', 'unknown')} stopped session {session_id}"
+    )
     
     return SessionActionResponse(
         message="Session stopped",
@@ -277,13 +377,23 @@ async def stop_session(session_id: str) -> SessionActionResponse:
 
 
 @router.get("/{session_id}/metrics", response_model=SessionMetricsResponse)
-async def get_session_metrics(session_id: str) -> SessionMetricsResponse:
+async def get_session_metrics(
+    session_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    _rate: dict = Depends(rate_limit_dependency),
+) -> SessionMetricsResponse:
     """Get detailed metrics for a session.
     
     Returns comprehensive metrics including findings counts,
     step counts, duration, and agent summaries.
+    Requires authentication.
     """
     orch = get_orchestrator()
+    
+    # Validate session ID format
+    session_id = validate_session_id(session_id)
+    
     metrics = orch.get_metrics(session_id)
     if not metrics:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -302,15 +412,27 @@ async def get_session_metrics(session_id: str) -> SessionMetricsResponse:
 
 
 @router.delete("/{session_id}")
-async def delete_session(session_id: str) -> dict:
+async def delete_session(
+    session_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    _rate: dict = Depends(rate_limit_dependency),
+) -> dict:
     """Delete a session.
     
     Stops the session if running and removes all associated data.
+    Requires authentication.
     """
     orch = get_orchestrator()
+    
+    # Validate session ID format
+    session_id = validate_session_id(session_id)
+    
     if not orch.delete_session(session_id):
         raise HTTPException(status_code=404, detail="Session not found")
     
-    logger.info(f"Deleted session {session_id}")
+    logger.info(
+        f"User {current_user.get('sub', 'unknown')} deleted session {session_id}"
+    )
     
     return {"message": "Session deleted", "session_id": session_id}

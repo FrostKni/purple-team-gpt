@@ -6,12 +6,14 @@ them for real-time purple team exercises.
 """
 
 import asyncio
+import functools
 import logging
 import uuid
+import weakref
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from purple_team_gpt.agents.base import AgentState, Finding
 from purple_team_gpt.agents.red_agent import RedAgent
@@ -22,13 +24,21 @@ from purple_team_gpt.core.rag.vector_store import VectorStore
 logger = logging.getLogger(__name__)
 
 
+# Session cleanup settings
+SESSION_IDLE_TIMEOUT_MINUTES = 60
+SESSION_CLEANUP_INTERVAL_SECONDS = 300  # 5 minutes
+MAX_SESSIONS = 100
+
+
 class SessionStatus(str, Enum):
     """Status of a simulation session."""
     PENDING = "pending"
+    INITIALIZING = "initializing"
     RUNNING = "running"
     PAUSED = "paused"
     COMPLETED = "completed"
     ERROR = "error"
+    CLEANING_UP = "cleaning_up"
 
 
 @dataclass
@@ -43,10 +53,12 @@ class Session:
         created_at: Session creation timestamp
         started_at: Session start timestamp
         completed_at: Session completion timestamp
+        last_activity_at: Last activity timestamp (for cleanup)
         red_findings: Findings from Red Agent
         blue_findings: Findings from Blue Agent
         events: Chronological list of all events
         metadata: Additional session metadata
+        initialization_error: Error during initialization if any
     """
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     target: str = ""
@@ -55,10 +67,23 @@ class Session:
     created_at: datetime = field(default_factory=datetime.utcnow)
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    last_activity_at: datetime = field(default_factory=datetime.utcnow)
     red_findings: List[Finding] = field(default_factory=list)
     blue_findings: List[Finding] = field(default_factory=list)
     events: List[Dict[str, Any]] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    initialization_error: Optional[str] = None
+    
+    def update_activity(self) -> None:
+        """Update last activity timestamp."""
+        self.last_activity_at = datetime.utcnow()
+    
+    def is_idle(self, timeout_minutes: int = SESSION_IDLE_TIMEOUT_MINUTES) -> bool:
+        """Check if session has been idle too long."""
+        if self.status in (SessionStatus.COMPLETED, SessionStatus.ERROR):
+            return True
+        idle_time = datetime.utcnow() - self.last_activity_at
+        return idle_time > timedelta(minutes=timeout_minutes)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert session to dictionary representation."""
@@ -70,9 +95,11 @@ class Session:
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "last_activity_at": self.last_activity_at.isoformat() if self.last_activity_at else None,
             "red_findings_count": len(self.red_findings),
             "blue_findings_count": len(self.blue_findings),
             "events_count": len(self.events),
+            "initialization_error": self.initialization_error,
         }
 
 
@@ -120,6 +147,9 @@ class PurpleOrchestrator:
     - Session lifecycle management
     - Real-time event callbacks for UI integration
     - Metrics collection and reporting
+    - Automatic session cleanup for idle sessions
+    - Safe initialization with rollback on failure
+    - PostgreSQL persistence for session data
     
     Example:
         orchestrator = PurpleOrchestrator(engine, vector_store)
@@ -135,6 +165,8 @@ class PurpleOrchestrator:
         on_event: Optional[Callable[[AgentEvent], None]] = None,
         max_steps: int = 50,
         safe_mode: bool = True,
+        enable_cleanup: bool = True,
+        use_database: bool = False,
     ):
         """Initialize the Purple Orchestrator.
         
@@ -144,14 +176,18 @@ class PurpleOrchestrator:
             on_event: Callback for real-time event notifications
             max_steps: Maximum steps per agent per session
             safe_mode: Enable safe mode for tool execution
+            enable_cleanup: Enable automatic session cleanup
+            use_database: Use PostgreSQL for persistence (recommended)
         """
         self.engine = engine
         self.vector_store = vector_store
         self.on_event = on_event
         self.max_steps = max_steps
         self.safe_mode = safe_mode
+        self._enable_cleanup = enable_cleanup
+        self.use_database = use_database
         
-        # Session management
+        # Session management (in-memory for active sessions)
         self.sessions: Dict[str, Session] = {}
         self.red_agents: Dict[str, RedAgent] = {}
         self.blue_agents: Dict[str, BlueAgent] = {}
@@ -162,7 +198,199 @@ class PurpleOrchestrator:
         # Background tasks tracking
         self._session_tasks: Dict[str, asyncio.Task] = {}
         
-        logger.info("Purple Orchestrator initialized")
+        # Cleanup task
+        self._cleanup_task: Optional[asyncio.Task] = None
+        self._shutdown_event = asyncio.Event()
+        
+        # Track initialized sessions for rollback
+        self._initialized_sessions: Set[str] = set()
+        
+        # Start cleanup task if enabled
+        if self._enable_cleanup:
+            self._start_cleanup_task()
+        
+        logger.info(f"Purple Orchestrator initialized (database={'enabled' if use_database else 'disabled'})")
+    
+    def _get_repository(self):
+        """Get a database repository instance.
+        
+        Returns:
+            SessionRepository instance or None if database not enabled
+        """
+        if not self.use_database:
+            return None
+        
+        from purple_team_gpt.db.database import get_session
+        from purple_team_gpt.db.repository import SessionRepository
+        
+        # Return a context manager that provides the repository
+        class RepositoryContext:
+            def __enter__(self):
+                return self
+            
+            def __exit__(self, *args):
+                pass
+            
+            async def __aenter__(self):
+                self._session_ctx = get_session()
+                self._session = await self._session_ctx.__aenter__()
+                return SessionRepository(self._session)
+            
+            async def __aexit__(self, *args):
+                await self._session_ctx.__aexit__(*args)
+        
+        return RepositoryContext()
+    
+    async def _persist_session(self, session: Session) -> None:
+        """Persist session to database if enabled.
+        
+        Args:
+            session: Session to persist
+        """
+        if not self.use_database:
+            return
+        
+        try:
+            from purple_team_gpt.db.database import get_session as get_db_session
+            from purple_team_gpt.db.repository import SessionRepository
+            
+            async with get_db_session() as db_session:
+                repo = SessionRepository(db_session)
+                
+                # Check if session exists
+                existing = await repo.get_session(session.id)
+                if existing:
+                    # Update existing session
+                    await repo.update_session_status(
+                        session.id,
+                        session.status,
+                        session.started_at,
+                        session.completed_at,
+                    )
+                else:
+                    # Create new session
+                    await repo.create_session(
+                        target=session.target,
+                        scope=session.scope,
+                        metadata=session.metadata,
+                    )
+        except Exception as e:
+            logger.error(f"Failed to persist session {session.id}: {e}")
+    
+    async def _persist_finding(
+        self, session_id: str, agent: str, finding: Finding
+    ) -> None:
+        """Persist finding to database if enabled.
+        
+        Args:
+            session_id: Session identifier
+            agent: Agent that found the issue
+            finding: Finding to persist
+        """
+        if not self.use_database:
+            return
+        
+        try:
+            from purple_team_gpt.db.database import get_session as get_db_session
+            from purple_team_gpt.db.repository import SessionRepository
+            
+            async with get_db_session() as db_session:
+                repo = SessionRepository(db_session)
+                await repo.add_finding(session_id, agent, finding)
+        except Exception as e:
+            logger.error(f"Failed to persist finding: {e}")
+    
+    async def _persist_event(
+        self,
+        session_id: str,
+        agent: str,
+        event_type: str,
+        data: Dict[str, Any],
+    ) -> None:
+        """Persist event to database if enabled.
+        
+        Args:
+            session_id: Session identifier
+            agent: Agent that emitted the event
+            event_type: Type of event
+            data: Event payload
+        """
+        if not self.use_database:
+            return
+        
+        try:
+            from purple_team_gpt.db.database import get_session as get_db_session
+            from purple_team_gpt.db.repository import SessionRepository
+            
+            async with get_db_session() as db_session:
+                repo = SessionRepository(db_session)
+                await repo.add_event(session_id, agent, event_type, data)
+        except Exception as e:
+            logger.error(f"Failed to persist event: {e}")
+    
+    def _start_cleanup_task(self) -> None:
+        """Start the background cleanup task."""
+        try:
+            loop = asyncio.get_running_loop()
+            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+            logger.debug("Session cleanup task started")
+        except RuntimeError:
+            # No running loop - will start on first async operation
+            logger.debug("No running loop, cleanup will start on first operation")
+    
+    async def _cleanup_loop(self) -> None:
+        """Background task to clean up idle sessions."""
+        while not self._shutdown_event.is_set():
+            try:
+                await asyncio.sleep(SESSION_CLEANUP_INTERVAL_SECONDS)
+                await self._cleanup_idle_sessions()
+            except asyncio.CancelledError:
+                logger.info("Cleanup task cancelled")
+                break
+            except Exception as e:
+                logger.error(f"Error in cleanup loop: {e}")
+    
+    async def _cleanup_idle_sessions(self) -> int:
+        """Clean up sessions that have been idle too long.
+        
+        Returns:
+            Number of sessions cleaned up
+        """
+        cleaned = 0
+        sessions_to_clean = []
+        
+        for session_id, session in list(self.sessions.items()):
+            if session.is_idle(SESSION_IDLE_TIMEOUT_MINUTES):
+                sessions_to_clean.append(session_id)
+        
+        for session_id in sessions_to_clean:
+            try:
+                logger.info(f"Cleaning up idle session: {session_id}")
+                self.delete_session(session_id)
+                cleaned += 1
+            except Exception as e:
+                logger.error(f"Failed to cleanup session {session_id}: {e}")
+        
+        if cleaned > 0:
+            logger.info(f"Cleaned up {cleaned} idle sessions")
+        
+        return cleaned
+    
+    def _check_session_limit(self) -> None:
+        """Check if we've reached the session limit.
+        
+        Raises:
+            RuntimeError: If session limit reached
+        """
+        active_count = sum(
+            1 for s in self.sessions.values() 
+            if s.status in (SessionStatus.RUNNING, SessionStatus.PAUSED, SessionStatus.PENDING)
+        )
+        if active_count >= MAX_SESSIONS:
+            raise RuntimeError(
+                f"Maximum session limit ({MAX_SESSIONS}) reached. "
+                "Please clean up existing sessions."
+            )
     
     def create_session(
         self,
@@ -182,41 +410,108 @@ class PurpleOrchestrator:
             
         Returns:
             Created Session object
+            
+        Raises:
+            RuntimeError: If session limit reached
         """
+        # Check session limit
+        self._check_session_limit()
+        
         session = Session(
             target=target,
             scope=scope,
             metadata=metadata or {},
         )
         
+        # Persist to database if enabled (fire and forget)
+        if self.use_database:
+            asyncio.create_task(self._persist_session_create(session))
+        
+        # Start with session in dict so we can track partial init
         self.sessions[session.id] = session
-        self._event_queues[session.id] = asyncio.Queue()
+        self._event_queues[session.id] = asyncio.Queue(maxsize=500)
         
-        # Create Red Agent with callbacks
-        self.red_agents[session.id] = RedAgent(
-            engine=self.engine,
-            vector_store=self.vector_store,
-            on_step=lambda s: self._handle_step(session.id, "red", s),
-            on_finding=lambda f: self._handle_finding(session.id, "red", f),
-            on_output=lambda m: self._handle_output(session.id, "red", m),
-            max_steps=self.max_steps,
-            safe_mode=self.safe_mode,
-        )
-        
-        # Create Blue Agent with callbacks
-        self.blue_agents[session.id] = BlueAgent(
-            engine=self.engine,
-            vector_store=self.vector_store,
-            on_step=lambda s: self._handle_step(session.id, "blue", s),
-            on_finding=lambda f: self._handle_finding(session.id, "blue", f),
-            on_output=lambda m: self._handle_output(session.id, "blue", m),
-            max_steps=self.max_steps,
-            safe_mode=self.safe_mode,
-            monitored_system=target,
-        )
+        try:
+            # Create Red Agent with callbacks
+            self.red_agents[session.id] = RedAgent(
+                engine=self.engine,
+                vector_store=self.vector_store,
+                on_step=functools.partial(self._handle_step, session.id, "red"),
+                on_finding=functools.partial(self._handle_finding, session.id, "red"),
+                on_output=functools.partial(self._handle_output, session.id, "red"),
+                max_steps=self.max_steps,
+                safe_mode=self.safe_mode,
+            )
+            
+            # Create Blue Agent with callbacks
+            self.blue_agents[session.id] = BlueAgent(
+                engine=self.engine,
+                vector_store=self.vector_store,
+                on_step=functools.partial(self._handle_step, session.id, "blue"),
+                on_finding=functools.partial(self._handle_finding, session.id, "blue"),
+                on_output=functools.partial(self._handle_output, session.id, "blue"),
+                max_steps=self.max_steps,
+                safe_mode=self.safe_mode,
+                monitored_system=target,
+            )
+            
+            self._initialized_sessions.add(session.id)
+            
+        except Exception as e:
+            # Rollback partial initialization
+            logger.error(f"Failed to initialize session {session.id}: {e}")
+            session.initialization_error = str(e)
+            session.status = SessionStatus.ERROR
+            self._cleanup_partial_session(session.id)
+            raise RuntimeError(f"Failed to create session: {e}") from e
         
         logger.info(f"Created session {session.id} for target {target}")
         return session
+    
+    async def _persist_session_create(self, session: Session) -> None:
+        """Persist new session to database."""
+        try:
+            from purple_team_gpt.db.database import get_session as get_db_session
+            from purple_team_gpt.db.repository import SessionRepository
+            
+            async with get_db_session() as db_session:
+                repo = SessionRepository(db_session)
+                # Create with the same ID
+                from purple_team_gpt.db.models import SessionModel
+                session_model = SessionModel(
+                    id=session.id,
+                    target=session.target,
+                    scope=session.scope,
+                    status=session.status.value,
+                    metadata_=session.metadata,
+                )
+                db_session.add(session_model)
+        except Exception as e:
+            logger.error(f"Failed to persist session creation: {e}")
+    
+    def _cleanup_partial_session(self, session_id: str) -> None:
+        """Clean up a partially initialized session."""
+        # Remove agents if created
+        if session_id in self.red_agents:
+            try:
+                self.red_agents[session_id].stop()
+            except Exception:
+                pass
+            del self.red_agents[session_id]
+        
+        if session_id in self.blue_agents:
+            try:
+                self.blue_agents[session_id].stop()
+            except Exception:
+                pass
+            del self.blue_agents[session_id]
+        
+        # Remove queue
+        if session_id in self._event_queues:
+            del self._event_queues[session_id]
+        
+        # Remove from initialized set
+        self._initialized_sessions.discard(session_id)
     
     def get_session(self, session_id: str) -> Optional[Session]:
         """Get a session by ID.
@@ -258,24 +553,46 @@ class PurpleOrchestrator:
             
         Raises:
             ValueError: If session not found
+            RuntimeError: If session not properly initialized
         """
         session = self.sessions.get(session_id)
         if not session:
             raise ValueError(f"Session {session_id} not found")
         
+        # Check if session was properly initialized
+        if session_id not in self._initialized_sessions:
+            raise RuntimeError(f"Session {session_id} not properly initialized")
+        
         if session.status == SessionStatus.RUNNING:
             logger.warning(f"Session {session_id} already running")
             return
         
-        session.status = SessionStatus.RUNNING
-        session.started_at = datetime.utcnow()
+        # Update status to initializing
+        session.status = SessionStatus.INITIALIZING
+        session.update_activity()
         
         # Initialize agents
-        red_agent = self.red_agents[session_id]
-        blue_agent = self.blue_agents[session_id]
+        try:
+            red_agent = self.red_agents.get(session_id)
+            blue_agent = self.blue_agents.get(session_id)
+            
+            if not red_agent or not blue_agent:
+                raise RuntimeError(f"Agents not found for session {session_id}")
+            
+            red_agent.initialize(session.target, session.scope)
+            blue_agent.initialize(session.target, session.scope)
+        except Exception as e:
+            logger.error(f"Failed to initialize agents for session {session_id}: {e}")
+            session.status = SessionStatus.ERROR
+            session.initialization_error = f"Agent initialization failed: {e}"
+            await self._emit_event(session_id, "orchestrator", "initialization_error", {
+                "error": str(e),
+            })
+            raise
         
-        red_agent.initialize(session.target, session.scope)
-        blue_agent.initialize(session.target, session.scope)
+        session.status = SessionStatus.RUNNING
+        session.started_at = datetime.utcnow()
+        session.update_activity()
         
         # Emit session started event
         await self._emit_event(session_id, "orchestrator", "session_started", {
@@ -287,11 +604,25 @@ class PurpleOrchestrator:
         
         try:
             # Run both agents simultaneously
-            await asyncio.gather(
+            results = await asyncio.gather(
                 self._run_red_agent(session_id),
                 self._run_blue_agent(session_id),
                 return_exceptions=True,
             )
+            # Check if any agent raised an exception
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    agent_name = "red" if i == 0 else "blue"
+                    logger.error(f"{agent_name} agent failed in session {session_id}: {result}")
+                    # Don't re-raise - let the other agent finish gracefully
+                    await self._emit_event(session_id, agent_name, "agent_error", {
+                        "error": str(result),
+                    })
+        except asyncio.CancelledError:
+            logger.info(f"Session {session_id} cancelled")
+            session.status = SessionStatus.ERROR
+            await self._emit_event(session_id, "orchestrator", "session_cancelled", {})
+            raise
         except Exception as e:
             logger.error(f"Session {session_id} error: {e}")
             session.status = SessionStatus.ERROR
@@ -315,22 +646,47 @@ class PurpleOrchestrator:
         """Start a session in the background.
         
         Creates an asyncio task for the session, allowing it to run
-        without blocking the caller.
+        without blocking the caller. Adds error handling to prevent
+        unhandled exceptions.
         
         Args:
             session_id: Session identifier
             
         Returns:
             asyncio.Task for the session
+            
+        Raises:
+            ValueError: If session not found
         """
+        if session_id not in self.sessions:
+            raise ValueError(f"Session {session_id} not found")
+        
         if session_id in self._session_tasks:
             task = self._session_tasks[session_id]
             if not task.done():
                 logger.warning(f"Session {session_id} already running as background task")
                 return task
         
-        task = asyncio.create_task(self.start_session(session_id))
+        async def run_with_error_handling():
+            try:
+                await self.start_session(session_id)
+            except Exception as e:
+                logger.error(f"Background session {session_id} failed: {e}")
+                # Session status already set by start_session
+                raise
+        
+        task = asyncio.create_task(run_with_error_handling())
         self._session_tasks[session_id] = task
+        
+        # Add done callback for cleanup
+        def on_task_done(t: asyncio.Task) -> None:
+            if session_id in self._session_tasks:
+                del self._session_tasks[session_id]
+            if t.exception():
+                logger.error(f"Session task {session_id} ended with exception: {t.exception()}")
+        
+        task.add_done_callback(on_task_done)
+        
         return task
     
     async def _run_red_agent(self, session_id: str) -> None:
@@ -391,6 +747,8 @@ class PurpleOrchestrator:
             "total_steps": len(red_agent.steps),
             "total_findings": len(red_agent.findings),
         })
+        # Signal Blue agent to stop waiting
+        await self._emit_event(session_id, "red", "red_agent_done", {})
     
     async def _run_blue_agent(self, session_id: str) -> None:
         """Run the Blue Agent execution loop.
@@ -405,7 +763,7 @@ class PurpleOrchestrator:
         session = self.sessions[session_id]
         event_queue = self._event_queues[session_id]
         
-        while session.status == SessionStatus.RUNNING or session.status == SessionStatus.PAUSED:
+        while session.status in (SessionStatus.RUNNING, SessionStatus.PAUSED):
             # Check for pause
             if session.status == SessionStatus.PAUSED:
                 await asyncio.sleep(1)
@@ -421,6 +779,11 @@ class PurpleOrchestrator:
                 except asyncio.TimeoutError:
                     # No event, continue monitoring
                     continue
+                
+                # Sentinel: Red agent finished — Blue agent can exit
+                if event.get("agent") == "red" and event.get("event_type") == "red_agent_done":
+                    logger.info(f"Blue agent received red_agent_done sentinel for session {session_id}")
+                    break
                 
                 # Process Red agent events
                 if event.get("agent") == "red":
@@ -493,17 +856,22 @@ class PurpleOrchestrator:
             data=data,
         )
         
+        # Update session activity
+        session = self.sessions.get(session_id)
+        if session:
+            session.update_activity()
+        
         # Add to queue for inter-agent communication
         if session_id in self._event_queues:
             try:
-                await self._event_queues[session_id].put({
+                self._event_queues[session_id].put_nowait({
                     "agent": agent,
                     "event_type": event_type,
                     "data": data,
                     "timestamp": event.timestamp.isoformat(),
                 })
             except asyncio.QueueFull:
-                logger.warning(f"Event queue full for session {session_id}")
+                logger.warning(f"Event queue full for session {session_id}, dropping event: {event_type}")
         
         # Call external callback for UI/WebSocket integration
         if self.on_event:
@@ -513,7 +881,6 @@ class PurpleOrchestrator:
                 logger.warning(f"Event callback error: {e}")
         
         # Store in session history
-        session = self.sessions.get(session_id)
         if session:
             session.events.append({
                 "agent": agent,
@@ -521,6 +888,50 @@ class PurpleOrchestrator:
                 "data": data,
                 "timestamp": event.timestamp.isoformat(),
             })
+        
+        # Persist event to database (fire and forget)
+        if self.use_database:
+            asyncio.create_task(self._persist_event(session_id, agent, event_type, data))
+    
+    async def shutdown(self, timeout: float = 10.0) -> None:
+        """Gracefully shutdown the orchestrator.
+        
+        Cancels all running sessions and cleanup tasks.
+        
+        Args:
+            timeout: Seconds to wait for tasks to complete
+        """
+        logger.info("Shutting down orchestrator")
+        self._shutdown_event.set()
+        
+        # Cancel cleanup task
+        if self._cleanup_task and not self._cleanup_task.done():
+            self._cleanup_task.cancel()
+            try:
+                await asyncio.wait_for(self._cleanup_task, timeout=timeout)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                pass
+        
+        # Cancel all session tasks
+        for session_id, task in list(self._session_tasks.items()):
+            if not task.done():
+                task.cancel()
+                try:
+                    await asyncio.wait_for(task, timeout=timeout)
+                except (asyncio.TimeoutError, asyncio.CancelledError):
+                    pass
+        
+        # Stop all agents
+        for session_id in list(self.sessions.keys()):
+            try:
+                if session_id in self.red_agents:
+                    self.red_agents[session_id].stop()
+                if session_id in self.blue_agents:
+                    self.blue_agents[session_id].stop()
+            except Exception as e:
+                logger.warning(f"Error stopping agent for session {session_id}: {e}")
+        
+        logger.info("Orchestrator shutdown complete")
     
     def _safe_emit_event(
         self,
@@ -606,6 +1017,10 @@ class PurpleOrchestrator:
             else:
                 session.blue_findings.append(finding)
         
+        # Persist finding to database
+        if self.use_database:
+            asyncio.create_task(self._persist_finding(session_id, agent, finding))
+        
         self._safe_emit_event(session_id, agent, "finding", {
             "title": finding.title,
             "severity": finding.severity,
@@ -650,6 +1065,10 @@ class PurpleOrchestrator:
         
         session.status = SessionStatus.PAUSED
         
+        # Persist to database
+        if self.use_database:
+            asyncio.create_task(self._persist_session(session))
+        
         # Pause agents
         if session_id in self.red_agents:
             self.red_agents[session_id].pause()
@@ -683,6 +1102,10 @@ class PurpleOrchestrator:
             return False
         
         session.status = SessionStatus.RUNNING
+        
+        # Persist to database
+        if self.use_database:
+            asyncio.create_task(self._persist_session(session))
         
         # Resume agents
         if session_id in self.red_agents:
@@ -726,6 +1149,10 @@ class PurpleOrchestrator:
         
         session.status = SessionStatus.COMPLETED
         session.completed_at = datetime.utcnow()
+        
+        # Persist to database
+        if self.use_database:
+            asyncio.create_task(self._persist_session(session))
         
         logger.info(f"Session {session_id} stopped")
         
@@ -825,6 +1252,7 @@ class PurpleOrchestrator:
         """Delete a session and clean up resources.
         
         Stops the session if running and removes all associated data.
+        Safe to call multiple times.
         
         Args:
             session_id: Session identifier
@@ -835,20 +1263,71 @@ class PurpleOrchestrator:
         if session_id not in self.sessions:
             return False
         
-        # Stop if running
-        self.stop_session(session_id)
+        session = self.sessions[session_id]
         
-        # Clean up
-        del self.sessions[session_id]
-        del self.red_agents[session_id]
-        del self.blue_agents[session_id]
-        del self._event_queues[session_id]
+        # Mark as cleaning up to prevent race conditions
+        old_status = session.status
+        session.status = SessionStatus.CLEANING_UP
         
+        # Cancel background task first to prevent async events firing after cleanup
         if session_id in self._session_tasks:
+            task = self._session_tasks[session_id]
+            if not task.done():
+                task.cancel()
             del self._session_tasks[session_id]
+        
+        # Stop agents (without emitting events since we're about to delete)
+        if session_id in self.red_agents:
+            try:
+                self.red_agents[session_id].stop()
+            except Exception as e:
+                logger.debug(f"Error stopping red agent: {e}")
+            del self.red_agents[session_id]
+        
+        if session_id in self.blue_agents:
+            try:
+                self.blue_agents[session_id].stop()
+            except Exception as e:
+                logger.debug(f"Error stopping blue agent: {e}")
+            del self.blue_agents[session_id]
+        
+        # Update final status
+        if old_status == SessionStatus.RUNNING:
+            session.status = SessionStatus.COMPLETED
+            session.completed_at = datetime.utcnow()
+        else:
+            session.status = old_status
+        
+        # Clean up all session data
+        del self.sessions[session_id]
+        del self._event_queues[session_id]
+        self._initialized_sessions.discard(session_id)
+        
+        # Delete from database
+        if self.use_database:
+            asyncio.create_task(self._delete_session_from_db(session_id))
         
         logger.info(f"Session {session_id} deleted")
         return True
+    
+    async def _delete_session_from_db(self, session_id: str) -> None:
+        """Delete session from database."""
+        try:
+            from purple_team_gpt.db.database import get_session as get_db_session
+            from purple_team_gpt.db.repository import SessionRepository
+            
+            async with get_db_session() as db_session:
+                repo = SessionRepository(db_session)
+                await repo.delete_session(session_id)
+        except Exception as e:
+            logger.error(f"Failed to delete session from database: {e}")
+    
+    def get_active_session_count(self) -> int:
+        """Get count of active (running/paused/pending) sessions."""
+        return sum(
+            1 for s in self.sessions.values()
+            if s.status in (SessionStatus.RUNNING, SessionStatus.PAUSED, SessionStatus.PENDING)
+        )
 
 
 def create_orchestrator(

@@ -11,7 +11,7 @@ import json
 import logging
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
 from purple_team_gpt.core.orchestrator import AgentEvent, PurpleOrchestrator
 from purple_team_gpt.core.rag.vector_store import VectorStore
@@ -30,10 +30,23 @@ def set_dependencies(orch: PurpleOrchestrator, vs: VectorStore) -> None:
     """Set the orchestrator and vector store references.
     
     Called by main.py during application startup.
+    Registers a single persistent event callback on the orchestrator
+    so all WebSocket clients receive events via the ConnectionManager.
     """
     global _orchestrator, _vector_store
     _orchestrator = orch
     _vector_store = vs
+
+    # Register a single persistent callback that broadcasts to all connected clients.
+    # This avoids the per-connection callback overwrite race condition.
+    def _global_on_event(event: AgentEvent) -> None:
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(manager.broadcast_event(event.session_id, event))
+        except RuntimeError:
+            logger.warning(f"No event loop for global event callback: {event.event_type}")
+
+    orch.on_event = _global_on_event
 
 
 def get_orchestrator() -> PurpleOrchestrator:
@@ -164,7 +177,11 @@ manager = ConnectionManager()
 
 
 @router.websocket("/session/{session_id}")
-async def websocket_session(websocket: WebSocket, session_id: str):
+async def websocket_session(
+    websocket: WebSocket, 
+    session_id: str,
+    token: Optional[str] = None,
+):
     """WebSocket endpoint for session updates.
     
     Provides real-time updates for:
@@ -176,7 +193,44 @@ async def websocket_session(websocket: WebSocket, session_id: str):
     Also accepts incoming messages for:
     - Feedback submission
     - Pause/resume commands
+    
+    Authentication: Pass JWT token via query parameter 'token'
     """
+    from purple_team_gpt.backend.security import verify_token, validate_session_id
+    
+    # Validate session ID format
+    try:
+        session_id = validate_session_id(session_id)
+    except Exception as e:
+        await websocket.accept()
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Invalid session ID: {str(e)}",
+        })
+        await websocket.close()
+        return
+    
+    # Authenticate WebSocket connection
+    if not token:
+        await websocket.accept()
+        await websocket.send_json({
+            "type": "error",
+            "message": "Authentication required. Provide token query parameter.",
+        })
+        await websocket.close()
+        return
+    
+    try:
+        user_payload = verify_token(token)
+    except Exception as e:
+        await websocket.accept()
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Authentication failed: {str(e)}",
+        })
+        await websocket.close()
+        return
+    
     try:
         orch = get_orchestrator()
     except RuntimeError:
@@ -202,29 +256,19 @@ async def websocket_session(websocket: WebSocket, session_id: str):
     # Connect to the session
     await manager.connect(websocket, session_id)
     
+    # Send connection confirmation with user info
+    await websocket.send_json({
+        "type": "connected",
+        "session_id": session_id,
+        "message": f"Connected to session {session_id}",
+        "user": user_payload.get("sub", "unknown"),
+    })
+    
     # Send current session state
     await websocket.send_json({
         "type": "session_state",
         "session": session.to_dict(),
     })
-    
-    # Set up event callback for this session
-    def on_event(event: AgentEvent) -> None:
-        """Callback for orchestrator events.
-        
-        This is called synchronously from the orchestrator,
-        so we need to schedule the async broadcast.
-        """
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(manager.broadcast_event(session_id, event))
-        except RuntimeError:
-            # No running loop - should not happen in WebSocket context
-            logger.warning(f"No event loop for event callback: {event}")
-    
-    # Store previous callback and set new one
-    previous_callback = orch.on_event
-    orch.on_event = on_event
     
     try:
         # Main message loop
@@ -276,11 +320,6 @@ async def websocket_session(websocket: WebSocket, session_id: str):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         manager.disconnect(websocket, session_id)
-    
-    finally:
-        # Restore previous callback if this was the last connection
-        if manager.get_connection_count(session_id) == 0:
-            orch.on_event = previous_callback
 
 
 async def handle_feedback(session_id: str, message: dict, websocket: WebSocket) -> None:

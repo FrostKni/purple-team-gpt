@@ -1,0 +1,184 @@
+# Docker Compose for Distributed Purple Team GPT
+# 
+# This configuration deploys Purple Team GPT as distributed services:
+# - Orchestrator: Central coordination service
+# - Red Agent: Offensive security agent (attacker system)
+# - Blue Agent: Defensive security agent (defender system)
+#
+# Usage:
+#   docker-compose up -d
+#   docker-compose logs -f
+#   docker-compose down
+#
+# Network Architecture:
+#   - orchestrator: Management interface (port 8000)
+#   - red-agent: Attack network access (isolated)
+#   - blue-agent: Monitoring access (host mounts)
+
+version: '3.8'
+
+services:
+  # ============== Orchestrator Service ==============
+  orchestrator:
+    build:
+      context: ../..
+      dockerfile: src/purple_team_gpt/services/orchestrator_service/Dockerfile
+    container_name: purple-team-orchestrator
+    hostname: orchestrator
+    ports:
+      - "8000:8000"
+    environment:
+      - ORCHESTRATOR_HOST=0.0.0.0
+      - ORCHESTRATOR_PORT=8000
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - LLM_DEFAULT_PROVIDER=${LLM_DEFAULT_PROVIDER:-openai}
+      - LLM_DEFAULT_MODEL=${LLM_DEFAULT_MODEL:-gpt-4o}
+      - LLM_OPENAI_API_KEY=${LLM_OPENAI_API_KEY:-}
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+    networks:
+      - purple-team-management
+    depends_on:
+      - chromadb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ============== Red Agent Service ==============
+  red-agent:
+    build:
+      context: ../..
+      dockerfile: src/purple_team_gpt/services/red_agent_service/Dockerfile
+    container_name: purple-team-red-agent
+    hostname: red-agent
+    ports:
+      - "8001:8000"
+    environment:
+      - AGENT_TYPE=red
+      - AGENT_ID=red-agent-1
+      - AGENT_HOST=red-agent
+      - AGENT_PORT=8000
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - SAFE_MODE=${SAFE_MODE:-true}
+      - TOOL_TIMEOUT=${TOOL_TIMEOUT:-300}
+      - LLM_DEFAULT_PROVIDER=${LLM_DEFAULT_PROVIDER:-openai}
+      - LLM_OPENAI_API_KEY=${LLM_OPENAI_API_KEY:-}
+    networks:
+      - purple-team-management
+      - purple-team-attack
+    # Required for network scanning tools
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_ADMIN
+    # Use host network for actual network access
+    # network_mode: "host"
+    depends_on:
+      - orchestrator
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ============== Blue Agent Service ==============
+  blue-agent:
+    build:
+      context: ../..
+      dockerfile: src/purple_team_gpt/services/blue_agent_service/Dockerfile
+    container_name: purple-team-blue-agent
+    hostname: blue-agent
+    ports:
+      - "8002:8000"
+    environment:
+      - AGENT_TYPE=blue
+      - AGENT_ID=blue-agent-1
+      - AGENT_HOST=blue-agent
+      - AGENT_PORT=8000
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - SAFE_MODE=${SAFE_MODE:-true}
+      - TOOL_TIMEOUT=${TOOL_TIMEOUT:-120}
+      - LLM_DEFAULT_PROVIDER=${LLM_DEFAULT_PROVIDER:-openai}
+      - LLM_OPENAI_API_KEY=${LLM_OPENAI_API_KEY:-}
+    networks:
+      - purple-team-management
+    # Mount host directories for monitoring
+    volumes:
+      - /var/log:/var/log:ro
+      - /etc:/etc:ro
+      - /proc:/proc:ro
+    # Required for defensive operations
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_PTRACE
+    depends_on:
+      - orchestrator
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ============== Vector Store (ChromaDB) ==============
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: purple-team-chromadb
+    hostname: chromadb
+    ports:
+      - "8003:8000"
+    volumes:
+      - chromadb-data:/chroma/data
+    networks:
+      - purple-team-management
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ============== Optional: Web Frontend ==============
+  # frontend:
+  #   build:
+  #     context: ../../frontend
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - NEXT_PUBLIC_API_URL=http://orchestrator:8000
+  #   networks:
+  #     - purple-team-management
+  #   depends_on:
+  #     - orchestrator
+
+networks:
+  # Management network - orchestrator and agent communication
+  purple-team-management:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.0.0/24
+  
+  # Attack network - isolated network for Red agent
+  # Can be connected to target networks
+  purple-team-attack:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.100.0/24
+
+volumes:
+  chromadb-data:
+    driver: local

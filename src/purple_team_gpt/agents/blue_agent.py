@@ -7,6 +7,7 @@ security hardening measures.
 
 import asyncio
 import logging
+import shlex
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -244,6 +245,20 @@ class DefenseToolRunner:
         "service_manager", "user_auditor", "patch_manager",
     }
     
+    # Path traversal patterns to block
+    PATH_TRAVERSAL_PATTERNS = [
+        "../",           # Parent directory traversal
+        "..\\",          # Windows parent directory traversal
+        "/etc/passwd",   # Sensitive file access
+        "/etc/shadow",   # Sensitive file access
+        "/root/",        # Root directory access
+        "~",             # Home directory expansion
+        "$HOME",         # Environment variable expansion
+        "${HOME}",       # Environment variable expansion
+        "$USER",         # Environment variable expansion
+        "${USER}",       # Environment variable expansion
+    ]
+    
     def __init__(self, safe_mode: bool = True, default_timeout: int = 120):
         """Initialize the defense tool runner.
         
@@ -267,6 +282,47 @@ class DefenseToolRunner:
         if not command:
             return False, "Empty command"
         
+        # Validate the tool binary is in the allowed list
+        try:
+            args = shlex.split(command)
+        except ValueError as e:
+            return False, f"Invalid command syntax: {e}"
+        
+        if not args:
+            return False, "Empty command after parsing"
+        
+        # SECURITY: Ensure the binary path doesn't contain path traversal
+        binary_path = args[0]
+        tool_binary = binary_path.split("/")[-1]  # basename only
+        
+        # Block absolute paths that try to access non-standard locations
+        if binary_path.startswith("/"):
+            # Only allow standard system paths for known tools
+            allowed_prefixes = ["/usr/bin/", "/usr/local/bin/", "/bin/", "/sbin/"]
+            if not any(binary_path.startswith(prefix) for prefix in allowed_prefixes):
+                # Check if it's a relative path disguised as absolute
+                if ".." in binary_path:
+                    return False, "Path traversal detected in tool path"
+        
+        # Block relative paths with traversal
+        if ".." in binary_path or binary_path.startswith("./"):
+            return False, "Relative paths with traversal are not allowed"
+        
+        if tool_binary not in self.ALLOWED_TOOLS:
+            return False, f"Tool '{tool_binary}' is not in the allowed tools list"
+        
+        # Check for path traversal in arguments
+        for arg in args[1:]:
+            if ".." in arg:
+                # For defensive tools, be more restrictive
+                return False, f"Path traversal detected in argument: {arg[:50]}"
+            
+            # Check for sensitive file access in arguments
+            sensitive_patterns = ["/etc/passwd", "/etc/shadow", "/root/"]
+            for pattern in sensitive_patterns:
+                if pattern in arg:
+                    return False, f"Sensitive file path detected in argument: {pattern}"
+        
         # Check for dangerous patterns
         dangerous_patterns = [
             "rm -rf /",
@@ -279,16 +335,27 @@ class DefenseToolRunner:
             "reboot",
             "init 0",
             "init 6",
+            "$((",
+            "))",
         ]
         
         for pattern in dangerous_patterns:
             if pattern in command.lower():
                 return False, f"Dangerous pattern detected: {pattern}"
         
-        # Check for allowed tools
-        tool_base = tool_name.split()[0] if tool_name else ""
-        if tool_base and tool_base not in self.ALLOWED_TOOLS:
-            logger.warning(f"Tool '{tool_base}' not in allowed list, executing anyway")
+        # Check for path traversal patterns
+        for pattern in self.PATH_TRAVERSAL_PATTERNS:
+            if pattern.lower() in command.lower():
+                # Defensive tools may need to access some of these paths
+                # but flag them for review in safe mode
+                if self.safe_mode:
+                    return False, f"Path traversal pattern detected: {pattern}"
+        
+        # Check for shell metacharacters that could lead to injection
+        shell_metacharacters = [";", "|", "`", "$(", "${", "&", "&&", "||", "<", ">", ">>", "<<"]
+        for meta in shell_metacharacters:
+            if meta in command:
+                return False, f"Shell metacharacter '{meta}' not allowed in command"
         
         return True, ""
     
@@ -326,9 +393,23 @@ class DefenseToolRunner:
         timeout = timeout or self.default_timeout
         
         try:
-            # Run command in subprocess
-            process = await asyncio.create_subprocess_shell(
-                command,
+            # Parse command into argument list to avoid shell injection
+            try:
+                args = shlex.split(command)
+            except ValueError as e:
+                return DefenseAction(
+                    action_type="execute",
+                    tool=tool_name,
+                    command=command,
+                    target="",
+                    reason="Invalid command syntax",
+                    success=False,
+                    output=f"Invalid command syntax: {e}",
+                )
+            
+            # Run command without shell to prevent injection
+            process = await asyncio.create_subprocess_exec(
+                *args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

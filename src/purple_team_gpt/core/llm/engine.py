@@ -1,13 +1,21 @@
 """Multi-provider LLM engine with LiteLLM and OpenAI-compatible support."""
 
+import asyncio
 import logging
+import os
+import ssl
+import json
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+from functools import wraps
 from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Union
 
 import litellm
 from litellm import acompletion
+import httpx
+import urllib3
 
 from purple_team_gpt.config import LLMSettings, OpenAICompatibleEndpoint
 
@@ -15,6 +23,83 @@ logger = logging.getLogger(__name__)
 
 # Configure LiteLLM
 litellm.drop_params = True
+
+
+def _configure_ssl_bypass() -> bool:
+    """Configure SSL verification bypass for self-signed certificates."""
+    ssl_verify_env = os.environ.get("LLM_SSL_VERIFY", "true").lower()
+    
+    if ssl_verify_env in ("false", "0", "no"):
+        logger.info("SSL verification bypass requested via LLM_SSL_VERIFY=false")
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        os.environ.setdefault("CURL_CA_BUNDLE", "")
+        os.environ.setdefault("REQUESTS_CA_BUNDLE", "")
+        ssl._create_default_https_context = ssl._create_unverified_context
+        logger.warning("SSL verification is DISABLED. Only use for development!")
+        return True
+    return False
+
+
+_SSL_BYPASS_ENABLED = _configure_ssl_bypass()
+
+
+class OpenAICompatibleClient:
+    """Direct HTTP client for OpenAI-compatible endpoints with SSL bypass."""
+    
+    def __init__(self, base_url: str, api_key: str, verify_ssl: bool = True, timeout: float = 120.0):
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.verify_ssl = verify_ssl
+        self.timeout = timeout
+    
+    def _get_headers(self) -> Dict[str, str]:
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}",
+        }
+    
+    async def chat_completion(
+        self,
+        model: str,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        stream: bool = False,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        url = f"{self.base_url}/chat/completions"
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": stream,
+        }
+        payload.update(kwargs)
+        headers = self._get_headers()
+        
+        async with httpx.AsyncClient(verify=self.verify_ssl, timeout=self.timeout) as client:
+            if stream:
+                return self._stream_response(client, url, payload, headers)
+            else:
+                response = await client.post(url, json=payload, headers=headers)
+                response.raise_for_status()
+                return response.json()
+    
+    async def _stream_response(self, client, url, payload, headers) -> AsyncIterator[str]:
+        async with client.stream("POST", url, json=payload, headers=headers) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    data = line[6:]
+                    if data == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(data)
+                        if chunk.get("choices") and chunk["choices"][0].get("delta", {}).get("content"):
+                            yield chunk["choices"][0]["delta"]["content"]
+                    except json.JSONDecodeError:
+                        continue
 
 
 class Provider(str, Enum):
@@ -355,9 +440,9 @@ class LLMEngine:
                             completion_kwargs[key] = value
                 
                 if stream and on_token:
-                    return await self._stream_chat(completion_kwargs, on_token)
+                    return await self._stream_chat(completion_kwargs, on_token, config)
                 else:
-                    return await self._blocking_chat(completion_kwargs)
+                    return await self._blocking_chat(completion_kwargs, config)
 
             except Exception as e:
                 last_error = e
@@ -368,8 +453,36 @@ class LLMEngine:
         logger.error(error_msg)
         raise RuntimeError(error_msg)
 
-    async def _blocking_chat(self, kwargs: Dict[str, Any]) -> str:
-        """Non-streaming chat completion."""
+    async def _blocking_chat(
+        self, 
+        kwargs: Dict[str, Any],
+        config: Optional[ProviderConfig] = None,
+    ) -> str:
+        """Non-streaming chat completion.
+        
+        Uses OpenAICompatibleClient for openai_compatible endpoints with SSL bypass.
+        Falls back to LiteLLM for other providers.
+        """
+        # Use custom client for OpenAI-compatible endpoints when SSL bypass is needed
+        if config and config.provider == Provider.OPENAI_COMPATIBLE and config.base_url:
+            if _SSL_BYPASS_ENABLED or not os.environ.get("LLM_SSL_VERIFY", "true").lower() in ("true", "1", "yes"):
+                client = OpenAICompatibleClient(
+                    base_url=config.base_url,
+                    api_key=config.api_key or "local",
+                    verify_ssl=not _SSL_BYPASS_ENABLED,
+                    timeout=config.extra_kwargs.get("timeout", 120.0) if config.extra_kwargs else 120.0,
+                )
+                model_name = kwargs.get("model", "").replace("openai/", "")
+                result = await client.chat_completion(
+                    model=model_name,
+                    messages=kwargs.get("messages", []),
+                    temperature=kwargs.get("temperature", 0.7),
+                    max_tokens=kwargs.get("max_tokens", 4096),
+                    stream=False,
+                )
+                return result.get("choices", [{}])[0].get("message", {}).get("content", "")
+        
+        # Default: use LiteLLM
         response = await acompletion(**kwargs)
         return response.choices[0].message.content or ""
 
@@ -377,8 +490,37 @@ class LLMEngine:
         self,
         kwargs: Dict[str, Any],
         on_token: Callable[[str], None],
+        config: Optional[ProviderConfig] = None,
     ) -> str:
-        """Streaming chat completion."""
+        """Streaming chat completion.
+        
+        Uses OpenAICompatibleClient for openai_compatible endpoints with SSL bypass.
+        Falls back to LiteLLM for other providers.
+        """
+        # Use custom client for OpenAI-compatible endpoints when SSL bypass is needed
+        if config and config.provider == Provider.OPENAI_COMPATIBLE and config.base_url:
+            if _SSL_BYPASS_ENABLED or not os.environ.get("LLM_SSL_VERIFY", "true").lower() in ("true", "1", "yes"):
+                client = OpenAICompatibleClient(
+                    base_url=config.base_url,
+                    api_key=config.api_key or "local",
+                    verify_ssl=not _SSL_BYPASS_ENABLED,
+                    timeout=config.extra_kwargs.get("timeout", 120.0) if config.extra_kwargs else 120.0,
+                )
+                model_name = kwargs.get("model", "").replace("openai/", "")
+                
+                full_response = []
+                async for token in await client.chat_completion(
+                    model=model_name,
+                    messages=kwargs.get("messages", []),
+                    temperature=kwargs.get("temperature", 0.7),
+                    max_tokens=kwargs.get("max_tokens", 4096),
+                    stream=True,
+                ):
+                    full_response.append(token)
+                    on_token(token)
+                return "".join(full_response)
+        
+        # Default: use LiteLLM streaming
         kwargs["stream"] = True
         response = await acompletion(**kwargs)
 
@@ -496,8 +638,8 @@ class LLMEngine:
             completion_kwargs["api_base"] = config.base_url
 
         if stream and on_token:
-            return await self._stream_chat(completion_kwargs, on_token)
-        return await self._blocking_chat(completion_kwargs)
+            return await self._stream_chat(completion_kwargs, on_token, config)
+        return await self._blocking_chat(completion_kwargs, config)
 
     @property
     def available_providers(self) -> List[str]:
@@ -537,7 +679,22 @@ class LLMEngine:
                 if config.base_url:
                     test_kwargs["api_base"] = config.base_url
                 
-                await acompletion(**test_kwargs)
+                # Use custom client for OpenAI-compatible endpoints with SSL bypass
+                if config.provider == Provider.OPENAI_COMPATIBLE and config.base_url and _SSL_BYPASS_ENABLED:
+                    client = OpenAICompatibleClient(
+                        base_url=config.base_url,
+                        api_key=config.api_key or "local",
+                        verify_ssl=False,
+                        timeout=10.0,
+                    )
+                    model_name = config.model or "gpt-3.5-turbo"
+                    await client.chat_completion(
+                        model=model_name,
+                        messages=[{"role": "user", "content": "ping"}],
+                        max_tokens=5,
+                    )
+                else:
+                    await acompletion(**test_kwargs)
                 results[str(provider)] = {"status": "healthy"}
                 
             except Exception as e:
