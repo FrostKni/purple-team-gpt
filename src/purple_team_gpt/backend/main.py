@@ -89,13 +89,23 @@ async def lifespan(app: FastAPI):
     vector_store.initialize_collections()
     logger.info("Vector store initialized")
 
-    # Initialize orchestrator - only use database if it was initialized
+    # Initialize orchestrator with database session factory if available
+    # Pass the get_session context manager for database persistence
+    if db_initialized:
+        from purple_team_gpt.db.database import get_session as db_session_factory
+
+        session_repository = db_session_factory
+        logger.info("Database persistence enabled for orchestrator")
+    else:
+        session_repository = None
+        logger.info("Running in-memory mode (no database persistence)")
+
     orchestrator = PurpleOrchestrator(
         engine=llm_engine,
         vector_store=vector_store,
+        session_repository=session_repository,
         max_steps=settings.agent.max_steps,
         safe_mode=settings.agent.safe_mode,
-        use_database=db_initialized,
     )
     logger.info("Orchestrator initialized")
 
