@@ -14,14 +14,14 @@ Usage:
     from purple_team_gpt.agents import RedAgent, BlueAgent, BaseAgent, Finding
     from purple_team_gpt.core.llm import create_engine
     from purple_team_gpt.core.rag import create_vector_store
-    
+
     # Create offensive agent
     engine = create_engine()
     vector_store = create_vector_store()
     red_agent = RedAgent(engine, vector_store)
     red_agent.initialize(target="192.168.1.1", scope="Authorized penetration test")
     summary = await red_agent.run_assessment()
-    
+
     # Create defensive agent
     blue_agent = BlueAgent(engine, vector_store)
     blue_agent.initialize(target="192.168.1.1")
@@ -54,6 +54,10 @@ from purple_team_gpt.agents.blue_agent import (
     ThreatLevel,
     create_blue_agent,
 )
+from purple_team_gpt.agents.memory import (
+    AgentLearning,
+    AgentMemory,
+)
 
 __all__ = [
     # Base classes and types
@@ -79,4 +83,7 @@ __all__ = [
     "ThreatEvent",
     "ThreatLevel",
     "create_blue_agent",
+    # Agent Memory
+    "AgentLearning",
+    "AgentMemory",
 ]
