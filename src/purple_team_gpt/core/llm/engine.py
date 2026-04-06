@@ -25,10 +25,135 @@ logger = logging.getLogger(__name__)
 litellm.drop_params = True
 
 
+# ============================================================================
+# Retry Utilities for Transient Error Handling
+# ============================================================================
+
+TRANSIENT_ERROR_PATTERNS: List[str] = [
+    "timeout",
+    "timed out",
+    "rate limit",
+    "rate_limit",
+    "too many requests",
+    "429",
+    "service unavailable",
+    "503",
+    "internal server error",
+    "500",
+    "connection reset",
+    "connection refused",
+    "connection error",
+    "temporarily unavailable",
+    "overloaded",
+    "capacity",
+    "try again",
+    "retry",
+    "gateway timeout",
+    "504",
+    "bad gateway",
+    "502",
+]
+
+
+def is_transient_error(error: Exception) -> bool:
+    """Check if an error is transient and should be retried.
+
+    Args:
+        error: The exception to check.
+
+    Returns:
+        True if the error is transient, False otherwise.
+    """
+    error_str = str(error).lower()
+
+    for pattern in TRANSIENT_ERROR_PATTERNS:
+        if pattern.lower() in error_str:
+            return True
+
+    if hasattr(error, "__class__"):
+        error_class_name = error.__class__.__name__.lower()
+        for pattern in TRANSIENT_ERROR_PATTERNS:
+            if pattern.lower() in error_class_name:
+                return True
+
+    if hasattr(error, "status_code"):
+        status_code = getattr(error, "status_code", None)
+        if status_code in (429, 500, 502, 503, 504):
+            return True
+
+    if hasattr(error, "response"):
+        response = getattr(error, "response", None)
+        if response is not None and hasattr(response, "status_code"):
+            status_code = getattr(response, "status_code", None)
+            if status_code in (429, 500, 502, 503, 504):
+                return True
+
+    return False
+
+
+def with_retry(
+    max_retries: int = 3,
+    backoff_factor: float = 1.0,
+    max_backoff: float = 60.0,
+    retryable_exceptions: Optional[tuple] = None,
+    backoff_base: Optional[float] = None,
+):
+    """Decorator for retrying async functions on transient errors.
+
+    Args:
+        max_retries: Maximum number of retry attempts.
+        backoff_factor: Multiplier for exponential backoff.
+        max_backoff: Maximum backoff time in seconds.
+        retryable_exceptions: Tuple of exception types to retry (optional).
+        backoff_base: Alias for backoff_factor (for backward compatibility).
+
+    Returns:
+        Decorated function with retry logic.
+    """
+    if backoff_base is not None:
+        backoff_factor = backoff_base
+
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            last_exception = None
+
+            for attempt in range(max_retries + 1):
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as e:
+                    last_exception = e
+
+                    if retryable_exceptions and not isinstance(e, retryable_exceptions):
+                        raise
+
+                    if not is_transient_error(e):
+                        raise
+
+                    if attempt >= max_retries:
+                        logger.error(
+                            f"Function {func.__name__} failed after {max_retries + 1} attempts: {e}"
+                        )
+                        raise
+
+                    backoff = min(backoff_factor * (2**attempt), max_backoff)
+                    logger.warning(
+                        f"Transient error in {func.__name__} (attempt {attempt + 1}/{max_retries + 1}): {e}. "
+                        f"Retrying in {backoff:.1f}s..."
+                    )
+                    await asyncio.sleep(backoff)
+
+            raise last_exception
+
+        return wrapper
+
+    return decorator
+
+
 def _configure_ssl_bypass() -> bool:
     """Configure SSL verification bypass for self-signed certificates."""
     ssl_verify_env = os.environ.get("LLM_SSL_VERIFY", "true").lower()
-    
+
     if ssl_verify_env in ("false", "0", "no"):
         logger.info("SSL verification bypass requested via LLM_SSL_VERIFY=false")
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -45,19 +170,21 @@ _SSL_BYPASS_ENABLED = _configure_ssl_bypass()
 
 class OpenAICompatibleClient:
     """Direct HTTP client for OpenAI-compatible endpoints with SSL bypass."""
-    
-    def __init__(self, base_url: str, api_key: str, verify_ssl: bool = True, timeout: float = 120.0):
+
+    def __init__(
+        self, base_url: str, api_key: str, verify_ssl: bool = True, timeout: float = 120.0
+    ):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.verify_ssl = verify_ssl
         self.timeout = timeout
-    
+
     def _get_headers(self) -> Dict[str, str]:
         return {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
         }
-    
+
     async def chat_completion(
         self,
         model: str,
@@ -77,7 +204,7 @@ class OpenAICompatibleClient:
         }
         payload.update(kwargs)
         headers = self._get_headers()
-        
+
         async with httpx.AsyncClient(verify=self.verify_ssl, timeout=self.timeout) as client:
             if stream:
                 return self._stream_response(client, url, payload, headers)
@@ -85,7 +212,7 @@ class OpenAICompatibleClient:
                 response = await client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
                 return response.json()
-    
+
     async def _stream_response(self, client, url, payload, headers) -> AsyncIterator[str]:
         async with client.stream("POST", url, json=payload, headers=headers) as response:
             response.raise_for_status()
@@ -96,7 +223,9 @@ class OpenAICompatibleClient:
                         break
                     try:
                         chunk = json.loads(data)
-                        if chunk.get("choices") and chunk["choices"][0].get("delta", {}).get("content"):
+                        if chunk.get("choices") and chunk["choices"][0].get("delta", {}).get(
+                            "content"
+                        ):
                             yield chunk["choices"][0]["delta"]["content"]
                     except json.JSONDecodeError:
                         continue
@@ -104,9 +233,11 @@ class OpenAICompatibleClient:
 
 class Provider(str, Enum):
     """Supported LLM providers."""
+
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
     GROQ = "groq"
+    GEMINI = "gemini"
     OLLAMA = "ollama"
     DEEPSEEK = "deepseek"
     MISTRAL = "mistral"
@@ -116,6 +247,7 @@ class Provider(str, Enum):
 @dataclass
 class Message:
     """Chat message."""
+
     role: str
     content: str
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -125,6 +257,7 @@ class Message:
 @dataclass
 class Conversation:
     """Conversation container for managing chat history."""
+
     messages: List[Message] = field(default_factory=list)
     system_prompt: str = ""
 
@@ -175,6 +308,7 @@ class Conversation:
 @dataclass
 class ProviderConfig:
     """Configuration for a specific provider."""
+
     provider: Provider
     model: str
     api_key: Optional[str] = None
@@ -186,9 +320,32 @@ class LLMEngine:
     """Multi-provider LLM engine with automatic failover and OpenAI-compatible support."""
 
     PROVIDER_MODELS = {
-        Provider.OPENAI: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo", "o1", "o1-mini", "o3-mini"],
-        Provider.ANTHROPIC: ["claude-sonnet-4-20250514", "claude-opus-4-20250514", "claude-3-5-haiku-20241022", "claude-3-5-sonnet-20241022"],
-        Provider.GROQ: ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "mixtral-8x7b-32768", "gemma2-9b-it"],
+        Provider.OPENAI: [
+            "gpt-4o",
+            "gpt-4o-mini",
+            "gpt-4-turbo",
+            "gpt-3.5-turbo",
+            "o1",
+            "o1-mini",
+            "o3-mini",
+        ],
+        Provider.ANTHROPIC: [
+            "claude-sonnet-4-20250514",
+            "claude-opus-4-20250514",
+            "claude-3-5-haiku-20241022",
+            "claude-3-5-sonnet-20241022",
+        ],
+        Provider.GROQ: [
+            "llama-3.3-70b-versatile",
+            "llama-3.1-70b-versatile",
+            "mixtral-8x7b-32768",
+            "gemma2-9b-it",
+        ],
+        Provider.GEMINI: [
+            "gemini-2.0-flash",
+            "gemini-1.5-pro",
+            "gemini-1.5-flash",
+        ],
         Provider.OLLAMA: ["llama3.2", "llama3.1", "mistral", "codellama", "qwen2.5"],
         Provider.DEEPSEEK: ["deepseek-chat", "deepseek-reasoner"],
         Provider.MISTRAL: ["mistral-large-latest", "mistral-medium-latest", "codestral-latest"],
@@ -196,12 +353,12 @@ class LLMEngine:
     }
 
     def __init__(
-        self, 
+        self,
         settings: LLMSettings,
         openai_compatible_endpoints: Optional[List[OpenAICompatibleEndpoint]] = None,
     ):
         """Initialize the LLM engine with settings.
-        
+
         Args:
             settings: LLM configuration settings
             openai_compatible_endpoints: List of OpenAI-compatible endpoint configurations
@@ -215,37 +372,44 @@ class LLMEngine:
     def _setup_api_keys(self) -> None:
         """Set API keys from settings for LiteLLM."""
         import os
+
         if self.settings.openai_api_key:
             os.environ["OPENAI_API_KEY"] = self.settings.openai_api_key
         if self.settings.anthropic_api_key:
             os.environ["ANTHROPIC_API_KEY"] = self.settings.anthropic_api_key
         if self.settings.groq_api_key:
             os.environ["GROQ_API_KEY"] = self.settings.groq_api_key
+        if (
+            hasattr(self.settings, "gemini_api_key")
+            and isinstance(self.settings.gemini_api_key, str)
+            and self.settings.gemini_api_key
+        ):
+            os.environ["GEMINI_API_KEY"] = self.settings.gemini_api_key
         if self.settings.deepseek_api_key:
             os.environ["DEEPSEEK_API_KEY"] = self.settings.deepseek_api_key
-        if hasattr(self.settings, 'mistral_api_key') and self.settings.mistral_api_key:
+        if hasattr(self.settings, "mistral_api_key") and self.settings.mistral_api_key:
             os.environ["MISTRAL_API_KEY"] = self.settings.mistral_api_key
         if self.settings.ollama_base_url:
             os.environ["OLLAMA_API_BASE"] = self.settings.ollama_base_url
 
     def _get_failover_order(self) -> List[Union[Provider, str]]:
         """Get provider failover order based on available API keys.
-        
+
         Returns:
             List of providers (or endpoint names for OpenAI-compatible)
         """
         order = []
-        
+
         # Add OpenAI-compatible endpoints first (highest priority for local setups)
         for endpoint in self.openai_compatible_endpoints:
             if endpoint.enabled:
                 order.append(f"openai_compatible:{endpoint.name}")
-        
+
         # Also check for env-configured OpenAI-compatible
         if self.settings.openai_compatible_base_url:
             if "openai_compatible:env_configured" not in order:
                 order.append("openai_compatible:env_configured")
-        
+
         # Add standard providers with configured API keys
         if self.settings.openai_api_key:
             order.append(Provider.OPENAI)
@@ -253,20 +417,26 @@ class LLMEngine:
             order.append(Provider.ANTHROPIC)
         if self.settings.groq_api_key:
             order.append(Provider.GROQ)
+        if (
+            hasattr(self.settings, "gemini_api_key")
+            and isinstance(self.settings.gemini_api_key, str)
+            and self.settings.gemini_api_key
+        ):
+            order.append(Provider.GEMINI)
         if self.settings.deepseek_api_key:
             order.append(Provider.DEEPSEEK)
         if self.settings.mistral_api_key:
             order.append(Provider.MISTRAL)
-        
+
         # Ollama is always available locally (no API key required)
         order.append(Provider.OLLAMA)
-        
+
         return order
 
     def _build_provider_configs(self) -> Dict[str, ProviderConfig]:
         """Build provider configurations for each failover option."""
         configs = {}
-        
+
         # Standard providers
         if self.settings.openai_api_key:
             configs[Provider.OPENAI.value] = ProviderConfig(
@@ -274,41 +444,52 @@ class LLMEngine:
                 model=self.settings.default_model,
                 api_key=self.settings.openai_api_key,
             )
-        
+
         if self.settings.anthropic_api_key:
             configs[Provider.ANTHROPIC.value] = ProviderConfig(
                 provider=Provider.ANTHROPIC,
                 model=self.settings.default_model,
                 api_key=self.settings.anthropic_api_key,
             )
-        
+
         if self.settings.groq_api_key:
             configs[Provider.GROQ.value] = ProviderConfig(
                 provider=Provider.GROQ,
                 model="llama-3.3-70b-versatile",
                 api_key=self.settings.groq_api_key,
             )
-        
+
+        if (
+            hasattr(self.settings, "gemini_api_key")
+            and isinstance(self.settings.gemini_api_key, str)
+            and self.settings.gemini_api_key
+        ):
+            configs[Provider.GEMINI.value] = ProviderConfig(
+                provider=Provider.GEMINI,
+                model="gemini-2.0-flash",
+                api_key=self.settings.gemini_api_key,
+            )
+
         if self.settings.deepseek_api_key:
             configs[Provider.DEEPSEEK.value] = ProviderConfig(
                 provider=Provider.DEEPSEEK,
                 model="deepseek-chat",
                 api_key=self.settings.deepseek_api_key,
             )
-        
+
         if self.settings.mistral_api_key:
             configs[Provider.MISTRAL.value] = ProviderConfig(
                 provider=Provider.MISTRAL,
                 model="mistral-large-latest",
                 api_key=self.settings.mistral_api_key,
             )
-        
+
         configs[Provider.OLLAMA.value] = ProviderConfig(
             provider=Provider.OLLAMA,
             model="llama3.2",
             base_url=self.settings.ollama_base_url,
         )
-        
+
         # OpenAI-compatible endpoints
         for endpoint in self.openai_compatible_endpoints:
             if endpoint.enabled:
@@ -323,7 +504,7 @@ class LLMEngine:
                         "headers": endpoint.headers,
                     },
                 )
-        
+
         # Env-configured OpenAI-compatible
         if self.settings.openai_compatible_base_url:
             key = "openai_compatible:env_configured"
@@ -333,32 +514,33 @@ class LLMEngine:
                 api_key=self.settings.openai_compatible_api_key or "local",
                 base_url=self.settings.openai_compatible_base_url,
             )
-        
+
         return configs
 
     def _get_model_string(
-        self, 
-        provider: Union[Provider, str], 
+        self,
+        provider: Union[Provider, str],
         model: str,
         base_url: Optional[str] = None,
     ) -> str:
         """Convert to LiteLLM model string format.
-        
+
         For OpenAI-compatible endpoints, we use openai/<model> with base_url.
         """
         if isinstance(provider, str) and provider.startswith("openai_compatible"):
             # OpenAI-compatible uses openai/ prefix with custom base_url
             return f"openai/{model}"
-        
+
         prefix_map = {
             Provider.OPENAI: "openai/",
             Provider.ANTHROPIC: "anthropic/",
             Provider.GROQ: "groq/",
+            Provider.GEMINI: "gemini/",
             Provider.OLLAMA: "ollama/",
             Provider.DEEPSEEK: "deepseek/",
             Provider.MISTRAL: "mistral/",
         }
-        
+
         return f"{prefix_map.get(provider, 'openai/')}{model}"
 
     def _get_default_model_for_provider(self, provider: Union[Provider, str]) -> str:
@@ -367,7 +549,7 @@ class LLMEngine:
             # Get from endpoint config
             config = self._provider_configs.get(provider)
             return config.model if config else self.settings.default_model
-        
+
         models = self.PROVIDER_MODELS.get(provider, [])
         return models[0] if models else self.settings.default_model
 
@@ -381,19 +563,19 @@ class LLMEngine:
     ) -> str:
         """
         Send conversation to LLM and return response.
-        
+
         Args:
             conversation: The conversation to send
             stream: Whether to stream the response
             on_token: Callback for each token when streaming
             model: Specific model to use (optional)
             provider: Specific provider to use (optional)
-            
+
         Returns:
             The LLM response as a string
         """
         messages = conversation.to_api_format()
-        
+
         # Determine which providers to try
         if provider:
             providers_to_try = [provider]
@@ -401,9 +583,9 @@ class LLMEngine:
             providers_to_try = self._failover_order
         else:
             providers_to_try = [self._failover_order[0]] if self._failover_order else []
-        
+
         last_error = None
-        
+
         for prov in providers_to_try:
             try:
                 config = self._provider_configs.get(prov if isinstance(prov, str) else prov.value)
@@ -414,13 +596,13 @@ class LLMEngine:
                     else:
                         logger.warning(f"No config found for provider: {prov}")
                         continue
-                
+
                 # Use specified model or config default
                 model_name = model or config.model or self.settings.default_model
                 model_string = self._get_model_string(prov, model_name, config.base_url)
-                
+
                 logger.debug(f"Trying provider {prov} with model {model_string}")
-                
+
                 # Build completion kwargs
                 completion_kwargs = {
                     "model": model_string,
@@ -428,17 +610,17 @@ class LLMEngine:
                     "temperature": self.settings.temperature,
                     "max_tokens": self.settings.max_tokens,
                 }
-                
+
                 # Add base_url for OpenAI-compatible endpoints
                 if config.base_url:
                     completion_kwargs["api_base"] = config.base_url
-                
+
                 # Add any extra kwargs
                 if config.extra_kwargs:
                     for key, value in config.extra_kwargs.items():
                         if key not in ["headers"]:  # Skip headers for now
                             completion_kwargs[key] = value
-                
+
                 if stream and on_token:
                     return await self._stream_chat(completion_kwargs, on_token, config)
                 else:
@@ -454,23 +636,29 @@ class LLMEngine:
         raise RuntimeError(error_msg)
 
     async def _blocking_chat(
-        self, 
+        self,
         kwargs: Dict[str, Any],
         config: Optional[ProviderConfig] = None,
     ) -> str:
         """Non-streaming chat completion.
-        
+
         Uses OpenAICompatibleClient for openai_compatible endpoints with SSL bypass.
         Falls back to LiteLLM for other providers.
         """
         # Use custom client for OpenAI-compatible endpoints when SSL bypass is needed
         if config and config.provider == Provider.OPENAI_COMPATIBLE and config.base_url:
-            if _SSL_BYPASS_ENABLED or not os.environ.get("LLM_SSL_VERIFY", "true").lower() in ("true", "1", "yes"):
+            if _SSL_BYPASS_ENABLED or not os.environ.get("LLM_SSL_VERIFY", "true").lower() in (
+                "true",
+                "1",
+                "yes",
+            ):
                 client = OpenAICompatibleClient(
                     base_url=config.base_url,
                     api_key=config.api_key or "local",
                     verify_ssl=not _SSL_BYPASS_ENABLED,
-                    timeout=config.extra_kwargs.get("timeout", 120.0) if config.extra_kwargs else 120.0,
+                    timeout=config.extra_kwargs.get("timeout", 120.0)
+                    if config.extra_kwargs
+                    else 120.0,
                 )
                 model_name = kwargs.get("model", "").replace("openai/", "")
                 result = await client.chat_completion(
@@ -481,7 +669,7 @@ class LLMEngine:
                     stream=False,
                 )
                 return result.get("choices", [{}])[0].get("message", {}).get("content", "")
-        
+
         # Default: use LiteLLM
         response = await acompletion(**kwargs)
         return response.choices[0].message.content or ""
@@ -493,21 +681,27 @@ class LLMEngine:
         config: Optional[ProviderConfig] = None,
     ) -> str:
         """Streaming chat completion.
-        
+
         Uses OpenAICompatibleClient for openai_compatible endpoints with SSL bypass.
         Falls back to LiteLLM for other providers.
         """
         # Use custom client for OpenAI-compatible endpoints when SSL bypass is needed
         if config and config.provider == Provider.OPENAI_COMPATIBLE and config.base_url:
-            if _SSL_BYPASS_ENABLED or not os.environ.get("LLM_SSL_VERIFY", "true").lower() in ("true", "1", "yes"):
+            if _SSL_BYPASS_ENABLED or not os.environ.get("LLM_SSL_VERIFY", "true").lower() in (
+                "true",
+                "1",
+                "yes",
+            ):
                 client = OpenAICompatibleClient(
                     base_url=config.base_url,
                     api_key=config.api_key or "local",
                     verify_ssl=not _SSL_BYPASS_ENABLED,
-                    timeout=config.extra_kwargs.get("timeout", 120.0) if config.extra_kwargs else 120.0,
+                    timeout=config.extra_kwargs.get("timeout", 120.0)
+                    if config.extra_kwargs
+                    else 120.0,
                 )
                 model_name = kwargs.get("model", "").replace("openai/", "")
-                
+
                 full_response = []
                 async for token in await client.chat_completion(
                     model=model_name,
@@ -519,7 +713,7 @@ class LLMEngine:
                     full_response.append(token)
                     on_token(token)
                 return "".join(full_response)
-        
+
         # Default: use LiteLLM streaming
         kwargs["stream"] = True
         response = await acompletion(**kwargs)
@@ -541,19 +735,19 @@ class LLMEngine:
     ) -> AsyncIterator[str]:
         """
         Stream response from LLM as an async iterator.
-        
+
         Args:
             conversation: The conversation to send
             model: Specific model to use (optional)
             provider: Specific provider to use (optional)
-            
+
         Yields:
             Tokens from the LLM response
         """
         messages = conversation.to_api_format()
-        
+
         providers_to_try = [provider] if provider else self._failover_order
-        
+
         for prov in providers_to_try:
             try:
                 config = self._provider_configs.get(prov if isinstance(prov, str) else prov.value)
@@ -562,10 +756,10 @@ class LLMEngine:
                         config = ProviderConfig(provider=prov, model=self.settings.default_model)
                     else:
                         continue
-                
+
                 model_name = model or config.model or self.settings.default_model
                 model_string = self._get_model_string(prov, model_name, config.base_url)
-                
+
                 completion_kwargs = {
                     "model": model_string,
                     "messages": messages,
@@ -573,7 +767,7 @@ class LLMEngine:
                     "max_tokens": self.settings.max_tokens,
                     "stream": True,
                 }
-                
+
                 if config.base_url:
                     completion_kwargs["api_base"] = config.base_url
 
@@ -599,13 +793,13 @@ class LLMEngine:
     ) -> str:
         """
         One-shot question without conversation history.
-        
+
         Args:
             prompt: The user prompt
             system: System prompt (optional)
             stream: Whether to stream the response
             on_token: Callback for streaming
-            
+
         Returns:
             The LLM response
         """
@@ -619,21 +813,27 @@ class LLMEngine:
             raise RuntimeError("No LLM providers configured")
 
         provider = self._failover_order[0]
-        config = self._provider_configs.get(provider if isinstance(provider, str) else provider.value)
-        
+        config = self._provider_configs.get(
+            provider if isinstance(provider, str) else provider.value
+        )
+
         if not config:
             config = ProviderConfig(
-                provider=Provider.OPENAI if isinstance(provider, Provider) else Provider.OPENAI_COMPATIBLE,
+                provider=Provider.OPENAI
+                if isinstance(provider, Provider)
+                else Provider.OPENAI_COMPATIBLE,
                 model=self.settings.default_model,
             )
-        
+
         completion_kwargs = {
-            "model": self._get_model_string(provider, config.model or self.settings.default_model, config.base_url),
+            "model": self._get_model_string(
+                provider, config.model or self.settings.default_model, config.base_url
+            ),
             "messages": messages,
             "temperature": self.settings.temperature,
             "max_tokens": self.settings.max_tokens,
         }
-        
+
         if config.base_url:
             completion_kwargs["api_base"] = config.base_url
 
@@ -654,12 +854,12 @@ class LLMEngine:
     async def health_check(self) -> Dict[str, Any]:
         """
         Check health of all configured providers.
-        
+
         Returns:
             Dictionary with provider health status
         """
         results = {}
-        
+
         for provider in self._failover_order:
             try:
                 config = self._provider_configs.get(
@@ -668,19 +868,25 @@ class LLMEngine:
                 if not config:
                     results[str(provider)] = {"status": "not_configured", "error": "No config"}
                     continue
-                
+
                 # Quick test with minimal tokens
                 test_kwargs = {
-                    "model": self._get_model_string(provider, config.model or "gpt-3.5-turbo", config.base_url),
+                    "model": self._get_model_string(
+                        provider, config.model or "gpt-3.5-turbo", config.base_url
+                    ),
                     "messages": [{"role": "user", "content": "ping"}],
                     "max_tokens": 5,
                 }
-                
+
                 if config.base_url:
                     test_kwargs["api_base"] = config.base_url
-                
+
                 # Use custom client for OpenAI-compatible endpoints with SSL bypass
-                if config.provider == Provider.OPENAI_COMPATIBLE and config.base_url and _SSL_BYPASS_ENABLED:
+                if (
+                    config.provider == Provider.OPENAI_COMPATIBLE
+                    and config.base_url
+                    and _SSL_BYPASS_ENABLED
+                ):
                     client = OpenAICompatibleClient(
                         base_url=config.base_url,
                         api_key=config.api_key or "local",
@@ -696,10 +902,10 @@ class LLMEngine:
                 else:
                     await acompletion(**test_kwargs)
                 results[str(provider)] = {"status": "healthy"}
-                
+
             except Exception as e:
                 results[str(provider)] = {"status": "unhealthy", "error": str(e)}
-        
+
         return results
 
     def get_provider_models(self, provider: Union[Provider, str]) -> List[str]:
@@ -707,10 +913,10 @@ class LLMEngine:
         if isinstance(provider, str) and provider.startswith("openai_compatible"):
             config = self._provider_configs.get(provider)
             return [config.model] if config and config.model else []
-        
+
         if isinstance(provider, Provider):
             return self.PROVIDER_MODELS.get(provider, [])
-        
+
         return []
 
     def add_openai_compatible_endpoint(self, endpoint: OpenAICompatibleEndpoint) -> None:
@@ -748,7 +954,7 @@ class LLMEngine:
 
     async def count_tokens(self, text: str) -> int:
         """Approximate token count for text.
-        
+
         Uses a simple approximation of ~4 characters per token.
         For accurate counts, use tiktoken or the model's tokenizer.
         """
