@@ -233,6 +233,9 @@ class DatabaseSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="DB_")
 
+    direct_url: Optional[str] = (
+        None  # Direct DATABASE_URL override (e.g., sqlite+aiosqlite:///./data/app.db)
+    )
     host: str = "localhost"
     port: int = 5432
     name: str = "purple_team_gpt"
@@ -247,11 +250,18 @@ class DatabaseSettings(BaseSettings):
     @property
     def url(self) -> str:
         """Get the database URL."""
+        if self.direct_url:
+            return self.direct_url
         return f"postgresql://{self.user}:***@{self.host}:{self.port}/{self.name}"
 
     @property
     def async_url(self) -> str:
         """Get the async database URL."""
+        if self.direct_url:
+            # Convert sqlite:// to sqlite+aiosqlite:// if needed
+            if self.direct_url.startswith("sqlite://") and "+aiosqlite" not in self.direct_url:
+                return self.direct_url.replace("sqlite://", "sqlite+aiosqlite://")
+            return self.direct_url
         return (
             f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
         )
@@ -259,6 +269,12 @@ class DatabaseSettings(BaseSettings):
 
 class Settings(BaseSettings):
     """Main settings container."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     llm: LLMSettings = Field(default_factory=LLMSettings)
     chroma: ChromaSettings = Field(default_factory=ChromaSettings)

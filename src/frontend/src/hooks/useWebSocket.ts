@@ -43,8 +43,23 @@ export function useWebSocket({
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const isManualDisconnect = useRef(false);
+  
+  // Use refs for callbacks to avoid reconnection loops
+  const onEventRef = useRef(onEvent);
+  const onConnectRef = useRef(onConnect);
+  const onDisconnectRef = useRef(onDisconnect);
+  const onErrorRef = useRef(onError);
+  
+  // Update refs when callbacks change
+  useEffect(() => {
+    onEventRef.current = onEvent;
+    onConnectRef.current = onConnect;
+    onDisconnectRef.current = onDisconnect;
+    onErrorRef.current = onError;
+  });
 
   // Clear all timers
   const clearTimers = useCallback(() => {
@@ -55,6 +70,10 @@ export function useWebSocket({
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current);
       countdownIntervalRef.current = null;
+    }
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null;
     }
   }, []);
 
@@ -120,7 +139,14 @@ export function useWebSocket({
           reconnectCountdown: 0,
           lastError: null,
         }));
-        onConnect?.();
+        onConnectRef.current?.();
+        
+        // Start heartbeat to keep connection alive
+        heartbeatIntervalRef.current = setInterval(() => {
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ type: 'ping' }));
+          }
+        }, 30000); // Send ping every 30 seconds
       };
 
       ws.onmessage = (event) => {
@@ -130,7 +156,7 @@ export function useWebSocket({
             ...prev,
             events: [...prev.events.slice(-99), data],
           }));
-          onEvent?.(data);
+          onEventRef.current?.(data);
         } catch (e) {
           console.error('Failed to parse WebSocket message:', e);
           setState(prev => ({
@@ -143,12 +169,18 @@ export function useWebSocket({
       ws.onclose = (event) => {
         wsRef.current = null;
         
+        // Clear heartbeat interval
+        if (heartbeatIntervalRef.current) {
+          clearInterval(heartbeatIntervalRef.current);
+          heartbeatIntervalRef.current = null;
+        }
+        
         setState(prev => ({
           ...prev,
           isConnected: false,
         }));
 
-        onDisconnect?.();
+        onDisconnectRef.current?.();
 
         // Don't reconnect if manual disconnect or max attempts reached
         if (isManualDisconnect.current) {
@@ -190,7 +222,7 @@ export function useWebSocket({
           lastError: 'WebSocket connection error',
         }));
 
-        onError?.(error);
+        onErrorRef.current?.(error);
       };
 
     } catch (error) {
@@ -201,7 +233,7 @@ export function useWebSocket({
         isConnected: false,
       }));
     }
-  }, [sessionId, onEvent, onConnect, onDisconnect, onError, shouldReconnect, reconnectInterval, maxReconnectAttempts, clearTimers, startCountdown]);
+  }, [sessionId, shouldReconnect, reconnectInterval, maxReconnectAttempts, clearTimers, startCountdown]);
 
   // Disconnect WebSocket
   const disconnect = useCallback(() => {

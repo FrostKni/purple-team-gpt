@@ -317,16 +317,67 @@ class ApiClient {
   }
 
   // Feedback
-  async submitFeedback(sessionId: string, feedback: {
-    agent: 'red' | 'blue';
-    action: string;
+  async submitFeedback(data: {
+    session_id: string;
+    interaction_id: string;
+    agent_type: 'red' | 'blue';
+    prompt: string;
+    response: string;
     rating: number;
-    feedback: string;
-  }): Promise<void> {
-    return this.fetch(`/api/v1/sessions/${sessionId}/feedback/`, {
+    comment?: string;
+    user_id?: string;
+    context?: Record<string, unknown>;
+  }): Promise<FeedbackResponse> {
+    return this.fetch('/api/v1/feedback/', {
       method: 'POST',
-      body: JSON.stringify(feedback),
+      body: JSON.stringify(data),
     });
+  }
+
+  async getFeedback(sessionId?: string, agentType?: string, minRating?: number, limit?: number): Promise<FeedbackListResponse> {
+    const params = new URLSearchParams();
+    if (sessionId) params.append('session_id', sessionId);
+    if (agentType) params.append('agent_type', agentType);
+    if (minRating !== undefined) params.append('min_rating', minRating.toString());
+    if (limit) params.append('limit', limit.toString());
+    
+    const query = params.toString();
+    return this.fetch(`/api/v1/feedback/${query ? `?${query}` : ''}`);
+  }
+
+  async getFeedbackStats(): Promise<FeedbackStats> {
+    return this.fetch('/api/v1/feedback/stats');
+  }
+
+  async updateFeedback(feedbackId: number, data: {
+    rating?: number;
+    comment?: string;
+  }): Promise<FeedbackResponse> {
+    return this.fetch(`/api/v1/feedback/${feedbackId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteFeedback(feedbackId: number): Promise<void> {
+    return this.fetch(`/api/v1/feedback/${feedbackId}`, { method: 'DELETE' });
+  }
+
+  async exportFeedback(sessionId?: string, minRating?: number): Promise<Blob> {
+    const params = new URLSearchParams();
+    if (sessionId) params.append('session_id', sessionId);
+    if (minRating !== undefined) params.append('min_rating', minRating.toString());
+    
+    const query = params.toString();
+    const token = await getToken();
+    const response = await fetch(
+      `${this.baseUrl}/api/v1/feedback/export${query ? `?${query}` : ''}`,
+      {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      }
+    );
+    return response.blob();
   }
 
   // Export
@@ -396,4 +447,32 @@ interface Detection {
   timestamp: string;
 }
 
+interface FeedbackResponse {
+  id: number;
+  session_id: string;
+  interaction_id: string;
+  agent_type: 'red' | 'blue';
+  prompt: string;
+  response: string;
+  rating: number;
+  comment?: string;
+  created_at: string;
+  user_id?: string;
+  context?: Record<string, unknown>;
+}
+
+interface FeedbackListResponse {
+  feedback: FeedbackResponse[];
+  total: number;
+}
+
+interface FeedbackStats {
+  total_feedback: number;
+  average_rating: number;
+  red_agent_count: number;
+  blue_agent_count: number;
+  rating_distribution: Record<number, number>;
+}
+
 export const api = new ApiClient(API_BASE);
+export type { FeedbackResponse, FeedbackListResponse, FeedbackStats };

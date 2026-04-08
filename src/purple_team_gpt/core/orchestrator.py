@@ -716,11 +716,15 @@ class PurpleOrchestrator:
         Args:
             session_id: Session identifier
         """
+        logger.info(f"Red agent task started for session {session_id}")
+
         red_agent = self.red_agents[session_id]
         session = self.sessions[session_id]
 
         # Initial reconnaissance context
         context = f"Starting authorized security assessment of {session.target}. Scope: {session.scope or 'Full assessment'}"
+
+        logger.info(f"Red agent entering main loop for session {session_id}")
 
         while red_agent.state not in (AgentStateEnum.COMPLETED, AgentStateEnum.ERROR):
             # Check for pause
@@ -733,8 +737,12 @@ class PurpleOrchestrator:
                 break
 
             try:
+                logger.info(f"Red agent running step for session {session_id}")
                 # Execute one step
                 result = await red_agent.run_step(context)
+                logger.info(
+                    f"Red agent step completed for session {session_id}: {result[:100] if result else 'No result'}"
+                )
 
                 # Emit event to Blue agent queue
                 await self._emit_event(
