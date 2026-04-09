@@ -14,23 +14,23 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/api': {
-        target: 'http://localhost:9000',
+        target: 'http://localhost:8000',
         changeOrigin: true,
       },
       '/auth': {
-        target: 'http://localhost:9000',
+        target: 'http://localhost:8000',
         changeOrigin: true,
       },
       '/ws': {
-        target: 'ws://localhost:9000',
+        target: 'ws://localhost:8000',
         ws: true,
       },
       '/health': {
-        target: 'http://localhost:9000',
+        target: 'http://localhost:8000',
         changeOrigin: true,
       },
       '/status': {
-        target: 'http://localhost:9000',
+        target: 'http://localhost:8000',
         changeOrigin: true,
       },
     },

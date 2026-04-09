@@ -1,8 +1,6 @@
 """Embedding engine using sentence-transformers or OpenAI."""
 
-import hashlib
 import logging
-import struct
 from enum import Enum
 from typing import List, Optional
 
@@ -17,13 +15,19 @@ class EmbeddingProvider(str, Enum):
     OPENAI = "openai"
 
 
+class EmbeddingEngineError(Exception):
+    """Raised when embedding engine cannot generate real embeddings."""
+    pass
+
+
 class EmbeddingEngine:
     """Generate embeddings for text using local or cloud models.
     
     Supports:
     - sentence-transformers (local, free)
     - OpenAI embeddings (cloud, requires API key)
-    - Mock embeddings (for testing without dependencies)
+    
+    NOTE: Real embeddings are REQUIRED. No fallback to mock data.
     """
     
     # Default models for each provider
@@ -55,6 +59,9 @@ class EmbeddingEngine:
             provider: Embedding provider (local or openai)
             openai_api_key: OpenAI API key (required if provider is openai)
             llm_settings: LLM settings object (alternative way to provide API key)
+            
+        Raises:
+            EmbeddingEngineError: If required dependencies are not available
         """
         self.provider = provider
         
@@ -75,29 +82,55 @@ class EmbeddingEngine:
         
         if provider == EmbeddingProvider.LOCAL:
             self._load_local_model()
+        elif provider == EmbeddingProvider.OPENAI:
+            self._verify_openai_setup()
         
         logger.info(f"EmbeddingEngine initialized: provider={provider.value}, model={model_name}")
     
     def _load_local_model(self) -> None:
-        """Load sentence-transformers model for local embeddings."""
+        """Load sentence-transformers model for local embeddings.
+        
+        Raises:
+            EmbeddingEngineError: If sentence-transformers is not installed
+        """
         try:
             from sentence_transformers import SentenceTransformer
             logger.debug(f"Loading sentence-transformers model: {self.model_name}")
             self._model = SentenceTransformer(self.model_name)
             self._initialized = True
             logger.info(f"Successfully loaded local embedding model: {self.model_name}")
-        except ImportError:
-            logger.warning(
-                "sentence-transformers not installed. "
+        except ImportError as e:
+            raise EmbeddingEngineError(
+                "sentence-transformers is REQUIRED for local embeddings. "
                 "Install with: pip install sentence-transformers. "
-                "Falling back to mock embeddings."
+                f"Error: {e}"
             )
-            self._model = None
-            self._initialized = True
         except Exception as e:
-            logger.error(f"Failed to load sentence-transformers model: {e}")
-            self._model = None
+            raise EmbeddingEngineError(
+                f"Failed to load sentence-transformers model '{self.model_name}': {e}"
+            )
+    
+    def _verify_openai_setup(self) -> None:
+        """Verify OpenAI API is properly configured.
+        
+        Raises:
+            EmbeddingEngineError: If OpenAI is not properly configured
+        """
+        try:
+            import openai
+            if not self.openai_api_key:
+                raise EmbeddingEngineError(
+                    "OpenAI API key is REQUIRED for OpenAI embeddings. "
+                    "Set OPENAI_API_KEY environment variable or provide via settings."
+                )
             self._initialized = True
+            logger.info("OpenAI embedding provider verified and ready")
+        except ImportError as e:
+            raise EmbeddingEngineError(
+                "openai package is REQUIRED for OpenAI embeddings. "
+                "Install with: pip install openai. "
+                f"Error: {e}"
+            )
     
     async def embed(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for a list of texts.
@@ -107,16 +140,22 @@ class EmbeddingEngine:
             
         Returns:
             List of embedding vectors (each a list of floats)
+            
+        Raises:
+            EmbeddingEngineError: If embeddings cannot be generated
         """
         if not texts:
             return []
         
-        if self.provider == EmbeddingProvider.OPENAI and self.openai_api_key:
+        if self.provider == EmbeddingProvider.OPENAI:
             return await self._embed_openai(texts)
         elif self._model is not None:
             return self._embed_local(texts)
         else:
-            return self._embed_mock(texts)
+            raise EmbeddingEngineError(
+                f"Embedding engine not properly initialized for provider '{self.provider.value}'. "
+                "Ensure all required dependencies are installed and configured."
+            )
     
     def embed_sync(self, texts: List[str]) -> List[List[float]]:
         """Synchronous embedding generation (for local model only).
@@ -126,6 +165,9 @@ class EmbeddingEngine:
             
         Returns:
             List of embedding vectors
+            
+        Raises:
+            EmbeddingEngineError: If embeddings cannot be generated
         """
         if not texts:
             return []
@@ -135,28 +177,37 @@ class EmbeddingEngine:
         elif self._model is not None:
             return self._embed_local(texts)
         else:
-            return self._embed_mock(texts)
+            raise EmbeddingEngineError(
+                "Local embedding model not loaded. Ensure sentence-transformers is installed."
+            )
     
     def _embed_local(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings using local sentence-transformers model."""
+        """Generate embeddings using local sentence-transformers model.
+        
+        Raises:
+            EmbeddingEngineError: If model is not loaded
+        """
         if self._model is None:
-            return self._embed_mock(texts)
+            raise EmbeddingEngineError(
+                "Local embedding model not loaded. Cannot generate embeddings."
+            )
         
         logger.debug(f"Generating local embeddings for {len(texts)} texts")
         embeddings = self._model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
         return embeddings.tolist()
     
     async def _embed_openai(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings using OpenAI API."""
-        try:
-            import openai
-        except ImportError:
-            logger.error("openai package not installed. Install with: pip install openai")
-            return self._embed_mock(texts)
+        """Generate embeddings using OpenAI API.
+        
+        Raises:
+            EmbeddingEngineError: If API call fails
+        """
+        import openai
         
         if not self.openai_api_key:
-            logger.warning("OpenAI API key not provided, falling back to mock embeddings")
-            return self._embed_mock(texts)
+            raise EmbeddingEngineError(
+                "OpenAI API key is required. Set OPENAI_API_KEY environment variable."
+            )
         
         logger.debug(f"Generating OpenAI embeddings for {len(texts)} texts using {self.model_name}")
         
@@ -176,40 +227,12 @@ class EmbeddingEngine:
                 batch_embeddings = [item.embedding for item in response.data]
                 all_embeddings.extend(batch_embeddings)
             except Exception as e:
-                logger.error(f"OpenAI embedding API error: {e}")
-                # Fall back to mock for this batch
-                all_embeddings.extend(self._embed_mock(batch))
+                raise EmbeddingEngineError(
+                    f"OpenAI embedding API error: {e}. "
+                    "Check your API key and network connection."
+                )
         
         return all_embeddings
-    
-    def _embed_mock(self, texts: List[str]) -> List[List[float]]:
-        """Generate mock embeddings for testing without dependencies.
-        
-        Creates deterministic pseudo-embeddings using SHA-256 hash.
-        The embeddings are normalized to unit vectors.
-        """
-        logger.debug(f"Generating mock embeddings for {len(texts)} texts")
-        
-        mock_dimension = 128
-        embeddings = []
-        
-        for text in texts:
-            # Generate deterministic pseudo-embedding from hash
-            h = hashlib.sha256(text.encode()).digest()
-            # Create 32 floats from 32 bytes
-            embedding = list(struct.unpack(f'{32}f', h))
-            # Normalize to unit vector
-            norm = sum(x**2 for x in embedding) ** 0.5
-            if norm > 0:
-                embedding = [x / norm for x in embedding]
-            # Pad or truncate to mock dimension
-            if len(embedding) < mock_dimension:
-                embedding.extend([0.0] * (mock_dimension - len(embedding)))
-            else:
-                embedding = embedding[:mock_dimension]
-            embeddings.append(embedding)
-        
-        return embeddings
     
     @property
     def dimension(self) -> int:
@@ -222,17 +245,19 @@ class EmbeddingEngine:
         if self._model is not None:
             return self._model.get_sentence_embedding_dimension()
         
-        # Default fallback
-        return 128
+        raise EmbeddingEngineError(
+            f"Cannot determine embedding dimension for model '{self.model_name}'. "
+            "Model not loaded."
+        )
     
     def is_ready(self) -> bool:
         """Check if the embedding engine is ready to generate embeddings."""
         if self.provider == EmbeddingProvider.OPENAI:
-            return bool(self.openai_api_key)
-        return True  # Local model can always fall back to mock
+            return bool(self.openai_api_key) and self._initialized
+        return self._model is not None and self._initialized
     
     def __repr__(self) -> str:
-        return f"EmbeddingEngine(provider={self.provider.value}, model={self.model_name}, dimension={self.dimension})"
+        return f"EmbeddingEngine(provider={self.provider.value}, model={self.model_name}, dimension={self.dimension if self.is_ready() else 'not initialized'})"
 
 
 def create_embedding_engine(
@@ -249,6 +274,9 @@ def create_embedding_engine(
         
     Returns:
         Configured EmbeddingEngine instance
+        
+    Raises:
+        EmbeddingEngineError: If required dependencies are not available
     """
     provider = EmbeddingProvider.OPENAI if use_openai else EmbeddingProvider.LOCAL
     

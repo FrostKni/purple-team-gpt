@@ -40,13 +40,20 @@ def set_dependencies(orch: PurpleOrchestrator, vs: VectorStore) -> None:
     # Register a single persistent callback that broadcasts to all connected clients.
     # This avoids the per-connection callback overwrite race condition.
     def _global_on_event(event: AgentEvent) -> None:
+        logger.debug(f"Global event callback received: {event.event_type} from {event.agent} for session {event.session_id}")
         try:
             loop = asyncio.get_running_loop()
+            # Check if there are any connections for this session
+            conn_count = manager.get_connection_count(event.session_id)
+            logger.debug(f"Broadcasting to {conn_count} connections for session {event.session_id}")
             loop.create_task(manager.broadcast_event(event.session_id, event))
-        except RuntimeError:
-            logger.warning(f"No event loop for global event callback: {event.event_type}")
+        except RuntimeError as e:
+            logger.warning(f"No event loop for global event callback: {event.event_type} - {e}")
+        except Exception as e:
+            logger.error(f"Error in global event callback: {e}")
 
     orch.on_event = _global_on_event
+    logger.info("WebSocket event callback registered with orchestrator")
 
 
 def get_orchestrator() -> PurpleOrchestrator:

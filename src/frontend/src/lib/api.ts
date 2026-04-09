@@ -57,6 +57,13 @@ const API_BASE = '';
 // Export token management functions
 let cachedToken: string | null = null;
 
+// Development mode credentials
+const DEV_USER = {
+  email: 'dev@purple-team.example.com',
+  password: 'DevPassword123!',
+  full_name: 'Development User'
+};
+
 export async function getToken(): Promise<string | null> {
   // Return cached token if available
   if (cachedToken) {
@@ -70,20 +77,36 @@ export async function getToken(): Promise<string | null> {
     return storedToken;
   }
   
-  // Fetch new token from auth endpoint (goes through proxy)
+  // For development: Auto-register and login
   try {
-    const response = await fetch(`/auth/token`, {
+    // First try to register the dev user (ignore if already exists)
+    await fetch(`/api/v1/auth/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify(DEV_USER),
     });
     
-    if (response.ok) {
-      const data = await response.json();
+    // Now login to get token
+    const loginResponse = await fetch(`/api/v1/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: DEV_USER.email,
+        password: DEV_USER.password,
+      }),
+    });
+    
+    if (loginResponse.ok) {
+      const data = await loginResponse.json();
       cachedToken = data.access_token;
       localStorage.setItem('auth_token', cachedToken || '');
       return cachedToken;
+    } else {
+      console.error('Login failed:', await loginResponse.text());
     }
   } catch (error) {
     console.error('Failed to get auth token:', error);
@@ -174,27 +197,27 @@ class ApiClient {
     return this.fetch(`/api/v1/sessions/${id}/`);
   }
 
-  async startSession(id: string): Promise<void> {
-    return this.fetch(`/api/v1/sessions/${id}/start/`, { method: 'POST' });
+  async startSession(id: string): Promise<{ message: string; session_id: string; status: string }> {
+    return this.fetch(`/api/v1/sessions/${id}/start`, { method: 'POST' });
   }
 
-  async pauseSession(id: string): Promise<void> {
-    return this.fetch(`/api/v1/sessions/${id}/pause/`, { method: 'POST' });
+  async pauseSession(id: string): Promise<{ message: string; session_id: string; status: string }> {
+    return this.fetch(`/api/v1/sessions/${id}/pause`, { method: 'POST' });
   }
 
-  async stopSession(id: string): Promise<void> {
-    return this.fetch(`/api/v1/sessions/${id}/stop/`, { method: 'POST' });
+  async stopSession(id: string): Promise<{ message: string; session_id: string; status: string }> {
+    return this.fetch(`/api/v1/sessions/${id}/stop`, { method: 'POST' });
   }
 
-  async resumeSession(id: string): Promise<void> {
-    return this.fetch(`/api/v1/sessions/${id}/resume/`, { method: 'POST' });
+  async resumeSession(id: string): Promise<{ message: string; session_id: string; status: string }> {
+    return this.fetch(`/api/v1/sessions/${id}/resume`, { method: 'POST' });
   }
 
   // Metrics
   async getMetrics(sessionId?: string): Promise<Metrics> {
     try {
       if (sessionId) {
-        return await this.fetch(`/api/v1/sessions/${sessionId}/metrics/`);
+        return await this.fetch(`/api/v1/sessions/${sessionId}/metrics`);
       }
       // Return default metrics if no session
       return {

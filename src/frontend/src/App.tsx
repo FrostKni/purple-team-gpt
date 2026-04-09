@@ -999,11 +999,21 @@ function AppContent() {
     const target = prompt('Enter target IP or domain:');
     if (!target) return;
     
-    const session = await api.createSession(target);
-    setSessions(prev => [session, ...prev]);
-    setActiveSessionId(session.id);
-    setActiveTab('red');
-    setIsMobileMenuOpen(false);
+    try {
+      const session = await api.createSession(target);
+      setSessions(prev => [session, ...prev]);
+      setActiveSessionId(session.id);
+      setActiveTab('red');
+      setIsMobileMenuOpen(false);
+      
+      // Auto-start the session after creation
+      await api.startSession(session.id);
+      setSessions(prev => 
+        prev.map(s => s.id === session.id ? { ...s, status: 'running' } : s)
+      );
+    } catch (error) {
+      console.error('Failed to create/start session:', error);
+    }
   }, []);
 
   const handleStartAttack = useCallback(async () => {

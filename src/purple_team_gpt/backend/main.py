@@ -302,41 +302,8 @@ async def status(
     }
 
 
-# Token endpoint for authentication
-@app.post("/auth/token", dependencies=[Depends(rate_limit_dependency)])
-async def create_token(request: Request) -> dict:
-    """Create an access token.
-
-    In a production system, this would validate credentials against
-    a user database or external authentication provider.
-
-    For now, this creates a token for a demo user.
-    TODO: Implement proper credential validation.
-    """
-    from purple_team_gpt.backend.security import create_access_token
-
-    # TODO: Implement proper authentication
-    # For development, create a token with a default user
-    settings = get_settings()
-
-    if not settings.app.debug:
-        raise HTTPException(
-            status_code=501,
-            detail="Authentication endpoint not configured for production",
-        )
-
-    # Development mode: create token for demo user
-    token_data = {
-        "sub": "demo_user",
-        "roles": ["user"],
-    }
-
-    access_token = create_access_token(token_data)
-
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-    }
+# Authentication is handled via /api/v1/auth/login and /api/v1/auth/register
+# Use those endpoints for real user authentication with database-backed users
 
 
 # Include routers
